@@ -320,6 +320,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const hitCounts = new Uint8Array(MAX_MIDI + 1);
   const missCounts = new Uint8Array(MAX_MIDI + 1);
   const lastAttackAt = new Float64Array(MAX_MIDI + 1);
+  const consumedAttackAt = new Float64Array(MAX_MIDI + 1);
 
   let mode = 'live';
   let score = createEmptyScore();
@@ -463,6 +464,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     hitCounts.fill(0);
     missCounts.fill(0);
     lastAttackAt.fill(-Infinity);
+    consumedAttackAt.fill(-Infinity);
   }
 
   function setListeningUI() {
@@ -1097,7 +1099,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         resultBytes = compressed;
       } else if (method === 8) {
         if (!('DecompressionStream' in window)) {
-          throw new Error('当前浏览器不支持 ZIP 解压，请使用最新版 Chrome、Edge 或 Safari。');
+          throw new Error('当前浏览器不支持 ZIP 解压，请使用最新版 Chrome 或 Edge。');
         }
         const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
         resultBytes = new Uint8Array(await new Response(stream).arrayBuffer());
@@ -1508,23 +1510,29 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   function createChallengeNotes() {
     const startAt = challengeStartAt;
     const secondsPerBeat = 60 / score.bpm;
-    const notes = [];
+    const unique = new Map();
 
     score.events.forEach((event,eventIndex) => {
       event.pitches.forEach(midi => {
-        notes.push({
-          id:event.id + '-' + midi + '-' + eventIndex,
-          midi,
-          duration:event.duration,
-          hitAt:startAt + event.beat * secondsPerBeat,
-          bar:null,
-          state:'pending'
-        });
+        const hitAt = startAt + event.beat * secondsPerBeat;
+        const key = hitAt.toFixed(4) + '|' + midi;
+        const existing = unique.get(key);
+        if (existing) {
+          existing.duration = Math.max(existing.duration,event.duration);
+        } else {
+          unique.set(key,{
+            id:event.id + '-' + midi + '-' + eventIndex,
+            midi,
+            duration:event.duration,
+            hitAt,
+            bar:null,
+            state:'pending'
+          });
+        }
       });
     });
 
-    notes.sort((a,b) => a.hitAt-b.hitAt || a.midi-b.midi);
-    return notes;
+    return Array.from(unique.values()).sort((a,b) => a.hitAt-b.hitAt || a.midi-b.midi);
   }
 
   function createFallingBar(note) {
@@ -1566,12 +1574,18 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
 
       const attackAt = lastAttackAt[note.midi];
-      const matchedInWindow = attackAt >= note.hitAt - HIT_EARLY_WINDOW &&
-        attackAt <= note.hitAt + HIT_LATE_WINDOW &&
-        now >= note.hitAt - HIT_EARLY_WINDOW &&
+      const freshAttack = attackAt > consumedAttackAt[note.midi];
+      const attackInWindow = freshAttack &&
+        attackAt >= note.hitAt - HIT_EARLY_WINDOW &&
+        attackAt <= note.hitAt + HIT_LATE_WINDOW;
+      // Early playing is remembered, but the bar only disappears when it
+      // reaches the strike line; late recognition gets a short grace window.
+      const matchedInWindow = attackInWindow &&
+        now >= note.hitAt - 0.04 &&
         now <= note.hitAt + HIT_LATE_WINDOW;
 
       if (matchedInWindow) {
+        consumedAttackAt[note.midi] = attackAt;
         note.state = 'hit';
         if (note.bar) {
           note.bar.classList.add('hit');
