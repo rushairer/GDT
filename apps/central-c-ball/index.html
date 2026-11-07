@@ -30,7 +30,7 @@ h1{margin:12px 0 8px;font-size:clamp(27px,4vw,42px);letter-spacing:-.04em}
 .state{min-height:28px;display:flex;align-items:center;justify-content:center;gap:9px;color:#a7b5cc;font-size:13px;margin-top:8px}
 .dot{width:7px;height:7px;border-radius:50%;background:#65728a;box-shadow:0 0 0 4px rgba(101,114,138,.12)}
 .dot.live{background:#50d6a0;box-shadow:0 0 0 4px rgba(80,214,160,.12),0 0 14px rgba(80,214,160,.55)}
-.result{margin-top:12px;font-size:clamp(28px,6vw,44px);font-weight:750;letter-spacing:-.045em;line-height:1.1}
+.result{margin-top:12px;font-size:clamp(21px,4vw,34px);font-weight:750;letter-spacing:-.035em;line-height:1.25;overflow-wrap:anywhere}.metric.notes strong{font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 .result small{display:block;margin-top:9px;color:#91a0bb;font-size:13px;font-weight:500;letter-spacing:.02em}
 .metrics{display:flex;justify-content:center;gap:12px;margin:22px auto 20px;max-width:560px;flex-wrap:wrap}
 .metric{flex:1 1 150px;padding:13px 10px;border:1px solid rgba(142,163,202,.13);border-radius:14px;background:rgba(19,27,45,.66)}
@@ -62,7 +62,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 <main class="app">
   <div class="eyebrow">REAL-TIME PITCH DETECTOR · FULL 88-KEY PIANO</div>
   <h1>88 键钢琴 · 音高识别</h1>
-  <p class="subtitle">完整显示钢琴 A0 到 C8 的 88 个琴键。弹奏哪个音，对应琴键就会发亮。</p>
+  <p class="subtitle">完整显示钢琴 A0 到 C8 的 88 个琴键。支持同时分析多个音符，弹奏单音或和弦时，对应琴键都会发亮。</p>
 
   <section class="keyboard-shell" aria-label="完整钢琴 88 键键盘">
     <div class="keyboard-caption">
@@ -82,28 +82,31 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
   <div class="result" id="result">等待音高<small>目标范围：钢琴 A0 – C8</small></div>
   <div class="metrics">
-    <div class="metric"><span>当前频率</span><strong id="frequency">-- Hz</strong></div>
-    <div class="metric"><span>识别音符</span><strong id="note">--</strong></div>
-    <div class="metric"><span>音分误差</span><strong id="cents">--</strong></div>
+    <div class="metric"><span>主音频率</span><strong id="frequency">-- Hz</strong></div>
+    <div class="metric notes"><span>识别音符</span><strong id="note">--</strong></div>
+    <div class="metric"><span>同时识别</span><strong id="noteCount">0 个</strong></div>
   </div>
   <div class="controls">
     <button class="primary" id="start">开始监听</button>
     <button class="secondary" id="stop" disabled>停止</button>
   </div>
   <div class="error" id="error" role="status" aria-live="polite"></div>
-  <p class="hint">请允许浏览器访问麦克风。识别到音高后，会点亮对应的白键或黑键。音频仅在本机浏览器内处理，不会上传。当前使用单音音高识别，一次主要识别一个音。</p>
+  <p class="hint">请允许浏览器访问麦克风。识别到音高后，会点亮对应的白键或黑键；多音同时出现时会尝试点亮多个琴键。音频仅在本机浏览器内处理，不会上传。复杂音色、强混响以及谐波重合的音程仍可能产生误判；若输入削波，请降低音源或麦克风增益。</p>
 </main>
 <script>
 (() => {
   'use strict';
+
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const WHITE_PITCH_CLASSES = new Set([0,2,4,5,7,9,11]);
   const MIN_MIDI = 21; // A0
   const MAX_MIDI = 108; // C8
-  const WHITE_KEY_COUNT = 52;
+  const FFT_SIZE = 32768;
   const HIT_TOLERANCE_CENTS = 35;
+  const CORE_HARMONIC_THRESHOLD = 0.50;
   const ACTIVATE_HITS = 2;
-  const RELEASE_MISSES = 3;
+  const RELEASE_MISSES = 4;
+  const MAX_POLYPHONY = 12;
+  const HARMONIC_WEIGHTS = [1.65,1.15,0.90,0.72,0.58,0.48,0.40,0.34,0.30,0.26];
 
   const $ = id => document.getElementById(id);
   const piano = $('piano');
@@ -113,24 +116,25 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const result = $('result');
   const frequencyEl = $('frequency');
   const noteEl = $('note');
-  const centsEl = $('cents');
+  const noteCountEl = $('noteCount');
   const errorEl = $('error');
   const startButton = $('start');
   const stopButton = $('stop');
 
   const keyElements = new Map();
+  const activeMidis = new Set();
+  const hitCounts = new Uint8Array(MAX_MIDI + 1);
+  const missCounts = new Uint8Array(MAX_MIDI + 1);
+
   let context = null;
   let stream = null;
   let analyser = null;
   let source = null;
-  let rawSamples = null;
-  let samples = null;
+  let timeData = null;
+  let spectrumData = null;
+  let magnitudeData = null;
   let raf = 0;
   let lastAnalysis = 0;
-  let currentActiveMidi = null;
-  let candidateMidi = null;
-  let candidateHits = 0;
-  let misses = 0;
   let starting = false;
 
   function midiToFrequency(midi) {
@@ -153,20 +157,22 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       key.dataset.midi = String(midi);
       key.title = noteName + ' · ' + midiToFrequency(midi).toFixed(2) + ' Hz';
 
-      if (WHITE_PITCH_CLASSES.has(pitchClass)) {
+      if ([0,2,4,5,7,9,11].includes(pitchClass)) {
         whiteIndex++;
         whiteCount++;
         key.className = 'white-key';
+
         if (pitchClass === 0) {
           const label = document.createElement('span');
           label.className = 'octave-label';
           label.textContent = noteName;
           key.appendChild(label);
         }
+
         whiteFragment.appendChild(key);
       } else {
         key.className = 'black-key';
-        key.style.left = ((whiteIndex + 1) / WHITE_KEY_COUNT * 100).toFixed(6) + '%';
+        key.style.left = ((whiteIndex + 1) / 52 * 100).toFixed(6) + '%';
         piano.appendChild(key);
       }
 
@@ -175,193 +181,250 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     whiteKeysContainer.appendChild(whiteFragment);
 
-    if (whiteCount !== WHITE_KEY_COUNT || keyElements.size !== 88) {
-      throw new Error('钢琴键盘数量校验失败：白键 ' + whiteCount + '，总键数 ' + keyElements.size);
+    if (whiteCount !== 52 || keyElements.size !== 88) {
+      throw new Error('钢琴键盘数量校验失败');
     }
   }
 
-  function setActiveKey(midi) {
-    if (currentActiveMidi === midi) return;
+  function setKeyActive(midi, active) {
+    const key = keyElements.get(midi);
+    if (!key) return;
 
-    if (currentActiveMidi !== null) {
-      const previous = keyElements.get(currentActiveMidi);
-      if (previous) previous.classList.remove('active');
+    if (active) {
+      if (!activeMidis.has(midi)) {
+        activeMidis.add(midi);
+        key.classList.add('active');
+      }
+    } else if (activeMidis.has(midi)) {
+      activeMidis.delete(midi);
+      key.classList.remove('active');
+    }
+  }
+
+  function clearActiveKeys() {
+    for (const midi of Array.from(activeMidis)) setKeyActive(midi, false);
+    hitCounts.fill(0);
+    missCounts.fill(0);
+  }
+
+  function measureInputLevel() {
+    let sumSquares = 0;
+    let peak = 0;
+    let clippedSamples = 0;
+
+    for (let i = 0; i < timeData.length; i++) {
+      const value = Math.abs(timeData[i]);
+      sumSquares += value * value;
+      if (value > peak) peak = value;
+      if (value >= 0.985) clippedSamples++;
     }
 
-    currentActiveMidi = midi;
-    if (midi !== null) {
-      const current = keyElements.get(midi);
-      if (current) current.classList.add('active');
+    return {
+      rms: Math.sqrt(sumSquares / timeData.length),
+      peak,
+      clippingRatio: clippedSamples / timeData.length
+    };
+  }
+
+  function fillMagnitudes() {
+    let maxMagnitude = 0;
+
+    for (let i = 0; i < spectrumData.length; i++) {
+      const db = spectrumData[i];
+      const magnitude = Number.isFinite(db) ? Math.pow(10, db / 20) : 0;
+      magnitudeData[i] = magnitude;
+      if (magnitude > maxMagnitude) maxMagnitude = magnitude;
+    }
+
+    return maxMagnitude;
+  }
+
+  function detectPolyphonicNotes(sampleRate, maxMagnitude) {
+    if (maxMagnitude < 1e-7) return [];
+
+    const binHz = sampleRate / FFT_SIZE;
+    const nyquist = sampleRate / 2;
+
+    function evidenceAt(frequency) {
+      const center = Math.round(frequency / binHz);
+      if (center < 2 || center >= magnitudeData.length - 1) return 0;
+
+      let peak = 0;
+      for (let offset = -1; offset <= 1; offset++) {
+        const value = magnitudeData[center + offset];
+        if (value > peak) peak = value;
+      }
+      if (peak <= 0) return 0;
+
+      const relativeLevel = peak / maxMagnitude;
+      if (relativeLevel < 0.0012) return 0;
+
+      let floorSum = 0;
+      let floorCount = 0;
+      for (let offset = -8; offset <= 8; offset++) {
+        if (Math.abs(offset) <= 2) continue;
+        const index = center + offset;
+        if (index < 1 || index >= magnitudeData.length) continue;
+        floorSum += magnitudeData[index];
+        floorCount++;
+      }
+
+      const localFloor = floorCount ? floorSum / floorCount : 0;
+      const ratio = peak / (localFloor + 1e-8);
+      const contrastDb = 20 * Math.log10(ratio);
+      const contrast = Math.max(0, Math.min(1, (contrastDb - 5) / 16));
+      const amplitudeGate = Math.max(0, Math.min(1, relativeLevel / 0.003));
+      return contrast * amplitudeGate;
+    }
+
+    const candidates = [];
+
+    for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
+      const fundamentalHz = midiToFrequency(midi);
+      const harmonicEvidence = [];
+      let weightedScore = 0;
+      let totalWeight = 0;
+
+      for (let harmonic = 1; harmonic <= HARMONIC_WEIGHTS.length; harmonic++) {
+        const harmonicHz = fundamentalHz * harmonic;
+        if (harmonicHz >= nyquist - binHz) break;
+
+        const evidence = evidenceAt(harmonicHz);
+        const weight = HARMONIC_WEIGHTS[harmonic - 1];
+        harmonicEvidence.push(evidence);
+        weightedScore += evidence * weight;
+        totalWeight += weight;
+      }
+
+      if (harmonicEvidence.length < 4) continue;
+
+      const fundamentalEvidence = harmonicEvidence[0] || 0;
+      const coreStrongCount = harmonicEvidence
+        .slice(1, 4)
+        .filter(value => value > CORE_HARMONIC_THRESHOLD).length;
+      const supportCount = harmonicEvidence.filter(value => value > 0.22).length;
+      const score = weightedScore / (totalWeight || 1);
+
+      // Require a visible fundamental and at least two of the 2nd–4th
+      // partials. This rejects many false notes created by another note's
+      // harmonics, especially in bass-heavy or loud passages.
+      if (fundamentalEvidence > 0.22 && coreStrongCount >= 2 && supportCount >= 3 && score > 0.18) {
+        candidates.push({
+          midi,
+          frequency: fundamentalHz,
+          score,
+          fundamentalEvidence
+        });
+      }
+    }
+
+    if (!candidates.length) return [];
+
+    const strongestScore = Math.max(...candidates.map(candidate => candidate.score));
+    const viable = candidates
+      .filter(candidate => candidate.score >= Math.max(0.18, strongestScore * 0.24))
+      .sort((a, b) => a.midi - b.midi);
+
+    // A lower note's partials often look like separate higher notes. Remove
+    // candidates that are close to integer harmonics of an already accepted
+    // lower note. Octave/harmonic intervals remain inherently ambiguous in
+    // a single-microphone spectrum.
+    const selected = [];
+    for (const candidate of viable) {
+      let explainedByLowerNote = false;
+
+      for (const lower of selected) {
+        const ratio = candidate.frequency / lower.frequency;
+        const harmonic = Math.round(ratio);
+
+        if (harmonic < 2 || harmonic > 16) continue;
+
+        const harmonicErrorCents = Math.abs(1200 * Math.log2(ratio / harmonic));
+        if (harmonicErrorCents < 28 && lower.score >= candidate.score * 0.45) {
+          explainedByLowerNote = true;
+          break;
+        }
+      }
+
+      if (!explainedByLowerNote) selected.push(candidate);
+      if (selected.length >= MAX_POLYPHONY) break;
+    }
+
+    return selected;
+  }
+
+  function updateNoteTracking(detectedNotes) {
+    const detected = new Set(detectedNotes.map(note => note.midi));
+
+    for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
+      if (detected.has(midi)) {
+        hitCounts[midi] = Math.min(255, hitCounts[midi] + 1);
+        missCounts[midi] = 0;
+        if (hitCounts[midi] >= ACTIVATE_HITS) setKeyActive(midi, true);
+      } else {
+        hitCounts[midi] = 0;
+        missCounts[midi] = Math.min(255, missCounts[midi] + 1);
+        if (missCounts[midi] >= RELEASE_MISSES) setKeyActive(midi, false);
+      }
+    }
+  }
+
+  function updateDisplay(detectedNotes, inputLevel) {
+    const activeNotes = Array.from(activeMidis).sort((a, b) => a - b);
+    const activeNames = activeNotes.map(midiToNoteName);
+    const strongest = detectedNotes.reduce((best, note) => !best || note.score > best.score ? note : best, null);
+
+    frequencyEl.textContent = strongest ? strongest.frequency.toFixed(1) + ' Hz' : '-- Hz';
+    noteEl.textContent = activeNames.length ? activeNames.join(' · ') : '--';
+    noteCountEl.textContent = activeNames.length + ' 个';
+
+    result.textContent = activeNames.length ? activeNames.join(' · ') : '监听中';
+    const detail = document.createElement('small');
+    detail.textContent = activeNames.length
+      ? '同时识别到 ' + activeNames.length + ' 个音符'
+      : '请演奏单音或和弦，识别到的琴键会同时发亮';
+    result.appendChild(detail);
+
+    if (inputLevel.clippingRatio > 0.002 || inputLevel.peak > 0.999) {
+      status.textContent = '输入可能发生削波：请降低音源音量或麦克风增益';
+    } else if (activeNames.length) {
+      status.textContent = '已识别 ' + activeNames.length + ' 个音：' + activeNames.join(' · ');
+    } else if (inputLevel.rms > 0.0012) {
+      status.textContent = '正在分析复合声音，请保持音符清晰';
+    } else {
+      status.textContent = '正在监听，请演奏钢琴音高';
     }
   }
 
   function clearPitchUI() {
     frequencyEl.textContent = '-- Hz';
     noteEl.textContent = '--';
-    centsEl.textContent = '--';
-    result.innerHTML = '等待音高<small>目标范围：钢琴 A0 – C8</small>';
-  }
-
-  function setListeningUI() {
-    result.innerHTML = '监听中<small>请演奏钢琴 88 键范围内的任意音符</small>';
-    status.textContent = '正在监听，请演奏钢琴音高';
-  }
-
-  function detectPitch(input, sampleRate) {
-    const n = input.length;
-    let mean = 0;
-    for (let i = 0; i < n; i++) mean += input[i];
-    mean /= n;
-
-    const data = new Float32Array(n);
-    let energy = 0;
-    for (let i = 0; i < n; i++) {
-      const value = input[i] - mean;
-      data[i] = value;
-      energy += value * value;
-    }
-    if (Math.sqrt(energy / n) < 0.0065) return null;
-
-    const minTau = Math.max(2, Math.floor(sampleRate / 4200));
-    const maxTau = Math.min(Math.floor(sampleRate / 25), Math.floor(n / 2));
-    if (maxTau <= minTau) return null;
-
-    const compareLength = n - maxTau;
-    const diff = new Float32Array(maxTau + 1);
-    for (let tau = 1; tau <= maxTau; tau++) {
-      let sum = 0;
-      for (let i = 0; i < compareLength; i++) {
-        const delta = data[i] - data[i + tau];
-        sum += delta * delta;
-      }
-      diff[tau] = sum;
-    }
-
-    const cmnd = new Float32Array(maxTau + 1);
-    cmnd[0] = 1;
-    let running = 0;
-    for (let tau = 1; tau <= maxTau; tau++) {
-      running += diff[tau];
-      cmnd[tau] = running === 0 ? 1 : diff[tau] * tau / running;
-    }
-
-    let chosen = -1;
-    for (let tau = minTau; tau < maxTau; tau++) {
-      if (cmnd[tau] < 0.12) {
-        while (tau + 1 <= maxTau && cmnd[tau + 1] < cmnd[tau]) tau++;
-        chosen = tau;
-        break;
-      }
-    }
-
-    if (chosen < 0) {
-      let best = 1;
-      for (let tau = minTau; tau <= maxTau; tau++) {
-        if (cmnd[tau] < best) {
-          best = cmnd[tau];
-          chosen = tau;
-        }
-      }
-      if (chosen < 0 || best > 0.25) return null;
-    }
-
-    let refined = chosen;
-    if (chosen > 0 && chosen < maxTau) {
-      const a = cmnd[chosen - 1];
-      const b = cmnd[chosen];
-      const c = cmnd[chosen + 1];
-      const denominator = 2 * (a - 2 * b + c);
-      if (Math.abs(denominator) > 1e-9) refined += (a - c) / denominator;
-    }
-
-    const hz = sampleRate / refined;
-    if (!Number.isFinite(hz) || hz < 25 || hz > 4200) return null;
-    return { hz, confidence: 1 - cmnd[chosen] };
-  }
-
-  function pitchToMidi(hz) {
-    return Math.round(69 + 12 * Math.log2(hz / 440));
-  }
-
-  function midiDistanceInCents(hz, midi) {
-    return 1200 * Math.log2(hz / midiToFrequency(midi));
-  }
-
-  function releaseActiveKey(message) {
-    candidateMidi = null;
-    candidateHits = 0;
-    misses = 0;
-    setActiveKey(null);
-    result.innerHTML = '监听中<small>请演奏钢琴 88 键范围内的任意音符</small>';
-    status.textContent = message || '正在监听，请演奏钢琴音高';
+    noteCountEl.textContent = '0 个';
+    result.textContent = '等待音高';
+    const detail = document.createElement('small');
+    detail.textContent = '目标范围：钢琴 A0 – C8';
+    result.appendChild(detail);
   }
 
   function analyse(timestamp) {
-    if (!analyser || !rawSamples || !samples || !context) return;
+    if (!analyser || !timeData || !spectrumData || !context) return;
+
     raf = requestAnimationFrame(analyse);
-    if (timestamp - lastAnalysis < 45) return;
+    if (timestamp - lastAnalysis < 55) return;
     lastAnalysis = timestamp;
 
-    analyser.getFloatTimeDomainData(rawSamples);
+    analyser.getFloatTimeDomainData(timeData);
+    const inputLevel = measureInputLevel();
 
-    // 降采样一半，保留 88 键音域所需带宽，降低实时 YIN 运算量。
-    for (let i = 0; i < samples.length; i++) {
-      samples[i] = (rawSamples[i * 2] + rawSamples[i * 2 + 1]) * 0.5;
-    }
+    analyser.getFloatFrequencyData(spectrumData);
+    const maxMagnitude = fillMagnitudes();
 
-    const pitch = detectPitch(samples, context.sampleRate / 2);
-    if (!pitch) {
-      misses++;
-      if (misses >= RELEASE_MISSES) {
-        frequencyEl.textContent = '-- Hz';
-        noteEl.textContent = '--';
-        centsEl.textContent = '--';
-        releaseActiveKey('正在监听，请演奏钢琴音高');
-      }
-      return;
-    }
+    const detectedNotes = inputLevel.rms < 0.0012
+      ? []
+      : detectPolyphonicNotes(context.sampleRate, maxMagnitude);
 
-    const midi = pitchToMidi(pitch.hz);
-    if (midi < MIN_MIDI || midi > MAX_MIDI) {
-      misses++;
-      if (misses >= RELEASE_MISSES) {
-        frequencyEl.textContent = pitch.hz.toFixed(1) + ' Hz';
-        noteEl.textContent = '超出 88 键范围';
-        centsEl.textContent = '--';
-        releaseActiveKey('已听到声音，但不在钢琴 88 键范围内');
-      }
-      return;
-    }
-
-    const cents = midiDistanceInCents(pitch.hz, midi);
-    const noteName = midiToNoteName(midi);
-    frequencyEl.textContent = pitch.hz.toFixed(1) + ' Hz';
-    noteEl.textContent = noteName;
-    centsEl.textContent = (cents > 0 ? '+' : '') + Math.round(cents) + ' ct';
-
-    const stable = pitch.confidence >= 0.68 && Math.abs(cents) <= HIT_TOLERANCE_CENTS;
-    if (!stable) {
-      misses++;
-      if (misses >= RELEASE_MISSES) {
-        releaseActiveKey('已听到 ' + noteName + '，但音高还不够稳定');
-      } else if (currentActiveMidi === null) {
-        status.textContent = '正在识别 ' + noteName + '，请保持音高稳定';
-      }
-      return;
-    }
-
-    misses = 0;
-    if (candidateMidi === midi) candidateHits++;
-    else {
-      candidateMidi = midi;
-      candidateHits = 1;
-    }
-
-    if (candidateHits >= ACTIVATE_HITS) {
-      setActiveKey(midi);
-      result.innerHTML = noteName + '<small>已识别对应琴键，正在发亮</small>';
-      status.textContent = '正在检测到 ' + noteName;
-    }
+    updateNoteTracking(detectedNotes);
+    updateDisplay(detectedNotes, inputLevel);
   }
 
   async function stop() {
@@ -375,13 +438,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     context = null;
     analyser = null;
     source = null;
-    rawSamples = null;
-    samples = null;
-    candidateMidi = null;
-    candidateHits = 0;
-    misses = 0;
+    timeData = null;
+    spectrumData = null;
+    magnitudeData = null;
 
-    setActiveKey(null);
+    clearActiveKeys();
     dot.classList.remove('live');
     status.textContent = '尚未启动麦克风监听';
     clearPitchUI();
@@ -405,6 +466,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          channelCount: 1,
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false
@@ -416,18 +478,19 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       await context.resume();
 
       analyser = context.createAnalyser();
-      analyser.fftSize = 8192;
-      analyser.smoothingTimeConstant = 0;
+      analyser.fftSize = FFT_SIZE;
+      analyser.smoothingTimeConstant = 0.12;
+      analyser.minDecibels = -110;
+      analyser.maxDecibels = -10;
+
       source = context.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      rawSamples = new Float32Array(analyser.fftSize);
-      samples = new Float32Array(analyser.fftSize / 2);
-      candidateMidi = null;
-      candidateHits = 0;
-      misses = 0;
+      timeData = new Float32Array(analyser.fftSize);
+      spectrumData = new Float32Array(analyser.frequencyBinCount);
+      magnitudeData = new Float32Array(analyser.frequencyBinCount);
 
-      setActiveKey(null);
+      clearActiveKeys();
       setListeningUI();
       dot.classList.add('live');
       stopButton.disabled = false;
@@ -436,12 +499,14 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     } catch (error) {
       if (stream) stream.getTracks().forEach(track => track.stop());
       stream = null;
+
       if (context && context.state !== 'closed') await context.close();
       context = null;
       analyser = null;
       source = null;
-      rawSamples = null;
-      samples = null;
+      timeData = null;
+      spectrumData = null;
+      magnitudeData = null;
 
       startButton.disabled = false;
       dot.classList.remove('live');
@@ -452,6 +517,14 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     } finally {
       starting = false;
     }
+  }
+
+  function setListeningUI() {
+    result.textContent = '监听中';
+    const detail = document.createElement('small');
+    detail.textContent = '请演奏钢琴 88 键范围内的任意单音或和弦';
+    result.appendChild(detail);
+    status.textContent = '正在监听，请演奏钢琴音高';
   }
 
   buildKeyboard();
