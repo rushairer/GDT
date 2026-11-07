@@ -766,7 +766,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
   }
 
-  function parseDuration(element, measureBeats, division) {
+  function parseDuration(element, measureBeats, division, tupletRatio = 1) {
     const durationTypeNode = directChild(element,'durationType');
     const durationType = durationTypeNode ? durationTypeNode.textContent.trim().toLowerCase() : '';
     const map = {
@@ -795,9 +795,9 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const dotsNode = directChild(element,'dots');
     const dots = dotsNode ? Math.max(0,Math.min(3,Number(dotsNode.textContent.trim()) || 0)) : 0;
     if (dots > 0) beats *= 2 - Math.pow(0.5,dots);
-    return Math.max(0.03125,Math.min(16,beats));
+    beats *= Math.max(0.01,Number(tupletRatio) || 1);
+    return Math.max(0.015625,Math.min(32,beats));
   }
-
   function directChild(node, name) {
     if (!node) return null;
     for (const child of Array.from(node.children || [])) {
@@ -833,18 +833,211 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   function parseTempoFromMuseScore(scoreNode) {
     const tempoNodes = scoreNode.getElementsByTagName('Tempo');
     for (const tempoNode of Array.from(tempoNodes)) {
-      const tempoText = childText(tempoNode,'tempo','');
-      const value = Number(tempoText);
-      if (Number.isFinite(value) && value > 0) {
-        return Math.round(value < 20 ? value * 60 : value);
-      }
-      const display = childText(tempoNode,'text','');
-      const match = display.match(/(\d+(?:\.\d+)?)/);
-      if (match) return Math.round(Number(match[1]));
+      const bpm = parseMuseScoreTempoMark(tempoNode);
+      if (bpm) return bpm;
     }
     return 120;
   }
 
+  function parseMuseScoreTempoMark(tempoNode) {
+    // MuseScore stores tempo as quarter-notes per second, not BPM.
+    const beatsPerSecond = Number(childText(tempoNode,'tempo',''));
+    if (Number.isFinite(beatsPerSecond) && beatsPerSecond > 0) {
+      return Math.max(5,Math.min(999,beatsPerSecond * 60));
+    }
+
+    const display = childText(tempoNode,'text','');
+    const match = display.match(/(\d+(?:\.\d+)?)/);
+    if (match) return Math.max(5,Math.min(999,Number(match[1])));
+
+    const words = display.toLowerCase();
+    const wordTempos = [
+      [/grave/,35],[/largo/,50],[/lento/,52],[/adagio/,71],
+      [/andante/,92],[/moderato/,114],[/allegretto/,116],
+      [/allegro/,144],[/vivace/,172],[/presto/,187]
+    ];
+    const found = wordTempos.find(([pattern]) => pattern.test(words));
+    return found ? found[1] : null;
+  }
+
+  function parseVoltaEndings(measure) {
+    const endings = new Set();
+    const spanners = Array.from(measure.getElementsByTagName('Spanner'));
+    for (const spanner of spanners) {
+      if (spanner.getAttribute('type') !== 'Volta') continue;
+      const volta = firstDescendant(spanner,'Volta');
+      if (!volta) continue;
+      const raw = childText(volta,'endings','');
+      for (const match of raw.matchAll(/\d+/g)) {
+        const value = Number(match[0]);
+        if (value > 0) endings.add(value);
+      }
+    }
+    return Array.from(endings).sort((a,b) => a-b);
+  }
+
+  function buildPlaybackMeasureOrder(measures) {
+    // Mirrors MuseScore's playback ordering: repeat starts/ends, volta
+    // endings, and D.C./D.S. jump markers are expanded into played measures.
+    const order = [];
+    const markerMap = new Map([['start',0]]);
+    const repeatCounts = new Map();
+    const repeatDone = new Set();
+    const jumpDone = new Set();
+
+    measures.forEach((measure,index) => {
+      for (const label of measure.markers || []) {
+        if (label) markerMap.set(label,index);
+      }
+    });
+
+    let lastRepeat = 0;
+    let endingPass = 1;
+    let afterRepeat = false;
+    let afterJump = false;
+    let afterPlayUntil = false;
+    let jumpToIndex = null;
+    let playUntilIndex = null;
+    let continueAtIndex = null;
+    let index = 0;
+    let steps = 0;
+    const maxSteps = Math.max(1000,measures.length * 200);
+
+    while (index < measures.length && steps++ < maxSteps) {
+      const measure = measures[index];
+
+      if (afterJump && !afterPlayUntil) {
+        if (jumpToIndex !== null && index < jumpToIndex) {
+          index++;
+          continue;
+        }
+        if (playUntilIndex !== null && index > playUntilIndex) {
+          if (continueAtIndex === null) break;
+          afterPlayUntil = true;
+          index = 0;
+          continue;
+        }
+      }
+
+      if (afterPlayUntil) {
+        if (continueAtIndex === null) break;
+        if (index < continueAtIndex) {
+          index++;
+          continue;
+        }
+        afterJump = false;
+        afterPlayUntil = false;
+        jumpToIndex = null;
+        playUntilIndex = null;
+        continueAtIndex = null;
+      }
+
+      let nextIndex = index + 1;
+
+      if (!jumpDone.has(index) && !afterJump && measure.jump) {
+        const jump = measure.jump;
+        jumpToIndex = markerMap.has(jump.jumpTo) ? markerMap.get(jump.jumpTo) : null;
+        playUntilIndex = markerMap.has(jump.playUntil) ? markerMap.get(jump.playUntil) : null;
+        continueAtIndex = jump.continueAt && markerMap.has(jump.continueAt)
+          ? markerMap.get(jump.continueAt)
+          : null;
+        afterJump = true;
+        jumpDone.add(index);
+        nextIndex = 0;
+      }
+
+      if (measure.repeatStart) {
+        lastRepeat = index;
+        if (!afterRepeat) {
+          repeatCounts.set(index,1);
+          endingPass = 1;
+        }
+      }
+
+      const endings = measure.endingNumbers || [];
+      if (endings.length && !endings.includes(endingPass)) {
+        index++;
+        afterRepeat = false;
+        continue;
+      }
+
+      if (!afterJump && measure.repeatCount) {
+        const repeatTimes = Math.max(2,Math.min(20,measure.repeatCount));
+        const count = repeatCounts.get(index) || 1;
+
+        if (!repeatDone.has(index) && count < repeatTimes) {
+          afterRepeat = true;
+          repeatCounts.set(index,count + 1);
+          endingPass++;
+          nextIndex = lastRepeat;
+        } else {
+          afterRepeat = false;
+          repeatDone.add(index);
+          repeatCounts.set(index,1);
+          endingPass = 1;
+        }
+      }
+
+      order.push(index);
+      index = nextIndex;
+    }
+
+    if (steps >= maxSteps) {
+      throw new Error('乐谱反复结构过于复杂，已停止展开以避免无限循环。');
+    }
+    return order;
+  }
+
+  function normalizeTempoChanges(changes, defaultBpm) {
+    const normalized = Array.isArray(changes)
+      ? changes.map(item => ({
+          beat:Math.max(0,Number(item.beat) || 0),
+          bpm:Math.max(5,Math.min(999,Number(item.bpm) || defaultBpm || 120))
+        })).filter(item => Number.isFinite(item.beat) && Number.isFinite(item.bpm))
+      : [];
+
+    normalized.sort((a,b) => a.beat-b.beat);
+    const deduplicated = [];
+    for (const item of normalized) {
+      const previous = deduplicated[deduplicated.length - 1];
+      if (previous && Math.abs(previous.beat-item.beat) < 0.00001) {
+        previous.bpm = item.bpm;
+      } else {
+        deduplicated.push({...item});
+      }
+    }
+
+    if (!deduplicated.length || deduplicated[0].beat > 0.00001) {
+      deduplicated.unshift({beat:0,bpm:defaultBpm || 120});
+    }
+    return deduplicated;
+  }
+
+  function beatToSeconds(beat, tempoChanges, defaultBpm) {
+    const targetBeat = Math.max(0,Number(beat) || 0);
+    const tempos = normalizeTempoChanges(tempoChanges,defaultBpm);
+    let elapsed = 0;
+    let previousBeat = 0;
+    let currentBpm = tempos[0].bpm;
+
+    for (let index = 1; index < tempos.length; index++) {
+      const change = tempos[index];
+      if (change.beat >= targetBeat) {
+        elapsed += Math.max(0,targetBeat-previousBeat) * 60 / currentBpm;
+        return elapsed;
+      }
+      elapsed += Math.max(0,change.beat-previousBeat) * 60 / currentBpm;
+      previousBeat = change.beat;
+      currentBpm = change.bpm;
+    }
+
+    elapsed += Math.max(0,targetBeat-previousBeat) * 60 / currentBpm;
+    return elapsed;
+  }
+
+  function scoreBeatToSeconds(beat) {
+    return beatToSeconds(beat,score.tempoChanges,score.bpm);
+  }
   function parseMuseScoreXml(xmlText,fileName) {
     const doc = new DOMParser().parseFromString(xmlText,'application/xml');
     if (doc.getElementsByTagName('parsererror').length) {
@@ -863,96 +1056,229 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         .filter(node => directChildren(node,'Measure').length > 0);
     }
 
-    let measureLists = staffNodes.map(staff => directChildren(staff,'Measure'));
-    if (!measureLists.length || !measureLists.some(list => list.length)) {
-      measureLists = [directChildren(scoreNode,'Measure')];
-    }
-
+    const measureLists = staffNodes.map(staff => directChildren(staff,'Measure'));
     const measureCount = Math.max(0,...measureLists.map(list => list.length));
     if (!measureCount) throw new Error('没有找到可读取的小节。');
 
     let meterNumerator = 4;
     let meterDenominator = 4;
-    let measureStart = 0;
-    const eventMap = new Map();
     let noteCount = 0;
+    const measureInfos = [];
 
     for (let measureIndex = 0; measureIndex < measureCount; measureIndex++) {
-      const firstMeasure = measureLists.map(list => list[measureIndex]).find(Boolean);
-      if (firstMeasure) {
-        const timeSig = firstDescendant(firstMeasure,'TimeSig');
-        if (timeSig) {
-          const n = Number(childText(timeSig,'sigN',''));
-          const d = Number(childText(timeSig,'sigD',''));
-          if (n > 0 && d > 0) {
-            meterNumerator = n;
-            meterDenominator = d;
-          }
+      const measureNodes = measureLists.map(list => list[measureIndex]).filter(Boolean);
+      const firstMeasure = measureNodes[0];
+      const timeSig = firstMeasure ? firstDescendant(firstMeasure,'TimeSig') : null;
+
+      if (timeSig) {
+        const n = Number(childText(timeSig,'sigN',''));
+        const d = Number(childText(timeSig,'sigD',''));
+        if (n > 0 && d > 0) {
+          meterNumerator = n;
+          meterDenominator = d;
         }
       }
 
-      const measureBeats = meterNumerator * 4 / meterDenominator;
+      const nominalMeasureBeats = meterNumerator * 4 / meterDenominator;
+      const localEvents = new Map();
+      const localTempos = new Map();
       let longestVoice = 0;
 
-      for (const measureList of measureLists) {
-        const measure = measureList[measureIndex];
-        if (!measure) continue;
-
+      for (const measure of measureNodes) {
         let voices = directChildren(measure,'voice');
         if (!voices.length) voices = [measure];
 
         for (const voice of voices) {
           let cursor = 0;
+          const tupletStack = [];
+
           for (const item of Array.from(voice.children || [])) {
+            if (item.localName === 'Tuplet') {
+              const normal = Number(childText(item,'normalNotes',''));
+              const actual = Number(childText(item,'actualNotes',''));
+              if (normal > 0 && actual > 0) tupletStack.push(normal / actual);
+              continue;
+            }
+
+            if (item.localName === 'endTuplet') {
+              if (tupletStack.length) tupletStack.pop();
+              continue;
+            }
+
+            if (item.localName === 'Tempo') {
+              const bpm = parseMuseScoreTempoMark(item);
+              if (bpm) {
+                const key = cursor.toFixed(6);
+                if (!localTempos.has(key)) localTempos.set(key,{beat:cursor,bpm});
+              }
+              continue;
+            }
+
+            const tupletRatio = tupletStack.reduce((product,value) => product * value,1);
+
             if (item.localName === 'Chord') {
-              const duration = parseDuration(item,measureBeats,division);
+              const duration = parseDuration(item,nominalMeasureBeats,division,tupletRatio);
               const notes = directChildren(item,'Note');
+
               for (const note of notes) {
                 const pitch = Number(childText(note,'pitch',''));
                 if (!Number.isInteger(pitch) || pitch < MIN_MIDI || pitch > MAX_MIDI) continue;
-                const beat = measureStart + cursor;
-                const key = beat.toFixed(6) + '|' + duration.toFixed(6);
-                let event = eventMap.get(key);
+
+                const key = cursor.toFixed(6) + '|' + duration.toFixed(6);
+                let event = localEvents.get(key);
                 if (!event) {
-                  event = { id:'import-' + (eventMap.size + 1), beat, duration, pitches:[] };
-                  eventMap.set(key,event);
+                  event = {id:'m' + measureIndex + '-' + localEvents.size,beat:cursor,duration,pitches:[]};
+                  localEvents.set(key,event);
                 }
                 if (!event.pitches.includes(pitch)) event.pitches.push(pitch);
                 noteCount++;
               }
               cursor += duration;
             } else if (item.localName === 'Rest') {
-              cursor += parseDuration(item,measureBeats,division);
+              cursor += parseDuration(item,nominalMeasureBeats,division,tupletRatio);
             }
           }
+
           if (cursor > longestVoice) longestVoice = cursor;
         }
       }
 
-      const measureNodeLength = firstMeasure ? parseFractionAsBeats(firstMeasure.getAttribute('len'),division) : 0;
-      measureStart += Math.max(measureBeats,measureNodeLength,longestVoice);
+      const declaredLength = firstMeasure
+        ? parseFractionAsBeats(firstMeasure.getAttribute('len'),division)
+        : 0;
+      const measureLength = Math.max(longestVoice,declaredLength || nominalMeasureBeats);
+
+      let repeatStart = false;
+      let repeatCount = 0;
+      const endingNumbers = new Set();
+      const markers = new Set();
+      let jump = null;
+
+      for (const measure of measureNodes) {
+        for (const marker of Array.from(measure.getElementsByTagName('Marker'))) {
+          const label = childText(marker,'label','');
+          if (label) markers.add(label);
+        }
+
+        const jumpNode = firstDescendant(measure,'Jump');
+        if (jumpNode && !jump) {
+          jump = {
+            jumpTo:childText(jumpNode,'jumpTo',''),
+            playUntil:childText(jumpNode,'playUntil',''),
+            continueAt:childText(jumpNode,'continueAt','')
+          };
+        }
+
+        const startNode = directChild(measure,'startRepeat');
+        if (startNode || (measure.hasAttribute('repeatStart') && measure.getAttribute('repeatStart') !== '0')) {
+          repeatStart = true;
+        }
+
+        const endNode = directChild(measure,'endRepeat');
+        if (endNode) {
+          const count = Number(endNode.textContent.trim());
+          repeatCount = Math.max(2,repeatCount,count || 2);
+        } else if (measure.hasAttribute('repeatEnd') && measure.getAttribute('repeatEnd') !== '0') {
+          const count = Number(measure.getAttribute('repeatEnd'));
+          repeatCount = Math.max(2,repeatCount,count || 2);
+        }
+
+        for (const ending of parseVoltaEndings(measure)) endingNumbers.add(ending);
+      }
+
+      measureInfos.push({
+        length:measureLength,
+        events:Array.from(localEvents.values()).map(event => ({
+          ...event,pitches:event.pitches.sort((a,b) => a-b)
+        })),
+        tempos:Array.from(localTempos.values()),
+        repeatStart,
+        repeatCount,
+        endingNumbers:Array.from(endingNumbers),
+        markers:Array.from(markers),
+        jump
+      });
     }
 
+    // Volta spanners carry a measure-range location. Apply ending numbers
+    // to every measure covered by the bracket, not only the first measure.
+    for (let measureIndex = 0; measureIndex < measureCount; measureIndex++) {
+      for (const measure of measureLists.map(list => list[measureIndex]).filter(Boolean)) {
+        for (const spanner of Array.from(measure.getElementsByTagName('Spanner'))) {
+          if (spanner.getAttribute('type') !== 'Volta') continue;
+          const volta = firstDescendant(spanner,'Volta');
+          if (!volta) continue;
+
+          const endings = parseVoltaEndings(measure);
+          const nextNode = directChild(spanner,'next');
+          const nextLocation = nextNode ? firstDescendant(nextNode,'location') : null;
+          const spanMeasures = nextLocation ? Number(childText(nextLocation,'measures','0')) : 0;
+          const endIndex = Math.min(measureCount - 1,measureIndex + Math.max(0,spanMeasures));
+
+          for (let target = measureIndex; target <= endIndex; target++) {
+            const targetSet = new Set(measureInfos[target].endingNumbers);
+            for (const ending of endings) targetSet.add(ending);
+            measureInfos[target].endingNumbers = Array.from(targetSet);
+          }
+        }
+      }
+    }
+
+    const playbackOrder = buildPlaybackMeasureOrder(measureInfos);
+    const events = [];
+    const tempoChanges = [];
+    let playbackBeat = 0;
+    let playbackEventIndex = 0;
+
+    for (const measureIndex of playbackOrder) {
+      const measure = measureInfos[measureIndex];
+
+      for (const event of measure.events) {
+        events.push({
+          id:'play-' + playbackEventIndex++,
+          beat:playbackBeat + event.beat,
+          duration:event.duration,
+          pitches:event.pitches
+        });
+      }
+
+      for (const tempo of measure.tempos) {
+        tempoChanges.push({beat:playbackBeat + tempo.beat,bpm:tempo.bpm});
+      }
+
+      playbackBeat += measure.length;
+    }
+
+    const normalizedTempos = normalizeTempoChanges(tempoChanges,120);
     const titleNode = firstDescendant(scoreNode,'workTitle') || firstDescendant(scoreNode,'movementTitle');
     let title = titleNode ? titleNode.textContent.trim() : '';
     const metaTags = scoreNode.getElementsByTagName('metaTag');
+
     for (const meta of Array.from(metaTags)) {
-      if (meta.getAttribute('name') === 'workTitle' && meta.textContent.trim()) title = meta.textContent.trim();
+      if (meta.getAttribute('name') === 'workTitle' && meta.textContent.trim()) {
+        title = meta.textContent.trim();
+      }
     }
     if (!title) title = fileName.replace(/\.[^.]+$/,'');
 
-    const events = Array.from(eventMap.values())
-      .map(event => ({...event,pitches:event.pitches.sort((a,b) => a-b)}))
-      .sort((a,b) => a.beat - b.beat || a.duration - b.duration);
-
     return {
-      format:'gdt-music-score',version:1,title,bpm:parseTempoFromMuseScore(scoreNode),
+      format:'gdt-music-score',
+      version:1,
+      title,
+      bpm:normalizedTempos[0].bpm,
       meter:{numerator:meterNumerator,denominator:meterDenominator},
-      events,
-      importInfo:{source:fileName,measures:measureCount,noteCount}
+      tempoChanges:normalizedTempos,
+      events:events.sort((a,b) => a.beat-b.beat || a.duration-b.duration),
+      importInfo:{
+        source:fileName,
+        measures:measureCount,
+        playbackMeasures:playbackOrder.length,
+        repeatedMeasures:Math.max(0,playbackOrder.length-measureCount),
+        tempoChanges:normalizedTempos.length,
+        noteCount
+      }
     };
   }
-
   function directChildren(node,name) {
     return Array.from(node.children || []).filter(child => child.localName === name);
   }
@@ -967,10 +1293,9 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     let divisions = 1;
     let meterNumerator = 4;
     let meterDenominator = 4;
-    let bpm = 120;
-    let globalBeat = 0;
-    const eventMap = new Map();
+    let activeEndingNumbers = [];
     let noteCount = 0;
+    const measureInfos = [];
     const measures = directChildren(part,'measure');
 
     for (const measure of measures) {
@@ -989,15 +1314,31 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         }
       }
 
-      const sound = firstDescendant(measure,'sound');
-      if (sound && sound.getAttribute('tempo')) {
-        const parsedTempo = Number(sound.getAttribute('tempo'));
-        if (parsedTempo > 0) bpm = Math.round(parsedTempo);
-      }
-      const perMinute = firstDescendant(measure,'per-minute');
-      if (perMinute && Number(perMinute.textContent) > 0) bpm = Math.round(Number(perMinute.textContent));
+      const nominalMeasureBeats = meterNumerator * 4 / meterDenominator;
+      const barlines = directChildren(measure,'barline');
+      let repeatStart = false;
+      let repeatCount = 0;
+      let endingStopAfterMeasure = false;
 
+      for (const barline of barlines) {
+        const location = barline.getAttribute('location') || 'right';
+        if (location !== 'left') continue;
+
+        const repeat = directChild(barline,'repeat');
+        if (repeat && repeat.getAttribute('direction') === 'forward') repeatStart = true;
+
+        const ending = directChild(barline,'ending');
+        if (ending && ending.getAttribute('type') === 'start') {
+          activeEndingNumbers = (ending.getAttribute('number') || '')
+            .split(/[,\s]+/).map(Number).filter(value => value > 0);
+        }
+      }
+
+      const endingsForMeasure = activeEndingNumbers.slice();
+      const localEvents = new Map();
+      const localTempos = [];
       let cursor = 0;
+      let maxCursor = 0;
       let previousNoteStart = 0;
 
       for (const item of Array.from(measure.children)) {
@@ -1005,6 +1346,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           const amount = Number(childText(item,'duration','')) / divisions;
           cursor += item.localName === 'backup' ? -amount : amount;
           cursor = Math.max(0,cursor);
+          maxCursor = Math.max(maxCursor,cursor);
+        } else if (item.localName === 'direction') {
+          const offset = Number(childText(item,'offset','0')) / divisions;
+          const bpm = parseMusicXMLTempoMark(item);
+          if (bpm) localTempos.push({beat:Math.max(0,cursor + offset),bpm});
         } else if (item.localName === 'note') {
           const duration = Number(childText(item,'duration','0')) / divisions;
           const isChordTone = !!directChild(item,'chord');
@@ -1019,12 +1365,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
               const octave = Number(childText(pitchNode,'octave','4'));
               const pitchClass = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[step];
               const midi = (octave + 1) * 12 + pitchClass + alter;
+
               if (Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI) {
-                const key = (globalBeat + beat).toFixed(6) + '|' + duration.toFixed(6);
-                let event = eventMap.get(key);
+                const key = beat.toFixed(6) + '|' + duration.toFixed(6);
+                let event = localEvents.get(key);
                 if (!event) {
-                  event = {id:'xml-' + (eventMap.size + 1),beat:globalBeat + beat,duration,pitches:[]};
-                  eventMap.set(key,event);
+                  event = {id:'xml-' + localEvents.size,beat,duration,pitches:[]};
+                  localEvents.set(key,event);
                 }
                 if (!event.pitches.includes(midi)) event.pitches.push(midi);
                 noteCount++;
@@ -1035,23 +1382,117 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           if (!isChordTone) {
             previousNoteStart = cursor;
             cursor += duration;
+            maxCursor = Math.max(maxCursor,cursor);
           }
         }
       }
 
-      globalBeat += meterNumerator * 4 / meterDenominator;
+      for (const barline of barlines) {
+        const location = barline.getAttribute('location') || 'right';
+        if (location === 'left') continue;
+
+        const repeat = directChild(barline,'repeat');
+        if (repeat && repeat.getAttribute('direction') === 'backward') {
+          repeatCount = Math.max(2,Number(repeat.getAttribute('times')) || 2);
+        }
+
+        const ending = directChild(barline,'ending');
+        if (ending) {
+          const type = ending.getAttribute('type');
+          if (type === 'start') {
+            activeEndingNumbers = (ending.getAttribute('number') || '')
+              .split(/[,\s]+/).map(Number).filter(value => value > 0);
+          } else if (type === 'stop' || type === 'discontinue') {
+            endingStopAfterMeasure = true;
+          }
+        }
+      }
+
+      const implicit = measure.getAttribute('implicit') === 'yes';
+      const measureLength = Math.max(maxCursor,implicit ? 0 : nominalMeasureBeats);
+      measureInfos.push({
+        length:measureLength || nominalMeasureBeats,
+        events:Array.from(localEvents.values()).map(event => ({
+          ...event,pitches:event.pitches.sort((a,b) => a-b)
+        })),
+        tempos:localTempos,
+        repeatStart,
+        repeatCount,
+        endingNumbers:endingsForMeasure,
+        markers:[],
+        jump:null
+      });
+
+      if (endingStopAfterMeasure) activeEndingNumbers = [];
     }
 
+    const playbackOrder = buildPlaybackMeasureOrder(measureInfos);
+    const events = [];
+    const tempoChanges = [];
+    let playbackBeat = 0;
+    let eventIndex = 0;
+
+    for (const measureIndex of playbackOrder) {
+      const measure = measureInfos[measureIndex];
+      for (const event of measure.events) {
+        events.push({
+          id:'xml-play-' + eventIndex++,
+          beat:playbackBeat + event.beat,
+          duration:event.duration,
+          pitches:event.pitches
+        });
+      }
+      for (const tempo of measure.tempos) {
+        tempoChanges.push({beat:playbackBeat + tempo.beat,bpm:tempo.bpm});
+      }
+      playbackBeat += measure.length;
+    }
+
+    const normalizedTempos = normalizeTempoChanges(tempoChanges,120);
     const titleNode = firstDescendant(doc,'work-title');
     const title = titleNode ? titleNode.textContent.trim() : fileName.replace(/\.[^.]+$/,'');
+
     return {
-      format:'gdt-music-score',version:1,title,bpm,
+      format:'gdt-music-score',
+      version:1,
+      title,
+      bpm:normalizedTempos[0].bpm,
       meter:{numerator:meterNumerator,denominator:meterDenominator},
-      events:Array.from(eventMap.values()).sort((a,b) => a.beat-b.beat),
-      importInfo:{source:fileName,measures:measures.length,noteCount}
+      tempoChanges:normalizedTempos,
+      events:events.sort((a,b) => a.beat-b.beat),
+      importInfo:{
+        source:fileName,
+        measures:measures.length,
+        playbackMeasures:playbackOrder.length,
+        repeatedMeasures:Math.max(0,playbackOrder.length-measures.length),
+        tempoChanges:normalizedTempos.length,
+        noteCount
+      }
     };
   }
 
+  function parseMusicXMLTempoMark(direction) {
+    const sound = firstDescendant(direction,'sound');
+    const soundTempo = sound ? Number(sound.getAttribute('tempo')) : 0;
+    if (Number.isFinite(soundTempo) && soundTempo > 0) {
+      return Math.max(5,Math.min(999,soundTempo));
+    }
+
+    const metronome = firstDescendant(direction,'metronome');
+    if (!metronome) return null;
+
+    const perMinute = Number(childText(metronome,'per-minute',''));
+    if (!Number.isFinite(perMinute) || perMinute <= 0) return null;
+
+    const beatUnits = {
+      maxima:32,long:16,breve:8,whole:4,half:2,quarter:1,
+      eighth:0.5,'16th':0.25,'32nd':0.125,'64th':0.0625,'128th':0.03125
+    };
+    const unit = beatUnits[childText(metronome,'beat-unit','quarter')] || 1;
+    const dots = metronome.getElementsByTagName('beat-unit-dot').length;
+    const dottedFactor = dots ? 2 - Math.pow(0.5,Math.min(3,dots)) : 1;
+    return Math.max(5,Math.min(999,perMinute * unit * dottedFactor));
+  }
   async function extractMscxFromZip(buffer) {
     const bytes = new Uint8Array(buffer);
     const view = new DataView(buffer);
