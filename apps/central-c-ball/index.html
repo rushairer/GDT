@@ -2324,7 +2324,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     $('challengeHits').textContent = String(challengeHits);
     $('challengeMisses').textContent = String(challengeMisses);
     const total = challengeHits + challengeMisses;
-    $('challengeAccuracy').textContent = total ? Math.round(challengeHits / total * 100) + '%' : '--';
+    $('challengeAccuracy').textContent = total ? (challengeHits / total * 100).toFixed(2) + '%' : '--';
   }
 
   function challengeLoop() {
