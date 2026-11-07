@@ -862,6 +862,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     return found ? found[1] : null;
   }
 
+  function hasMuseScoreTieForward(node) {
+    if (!node) return false;
+    return Array.from(node.getElementsByTagName('Spanner')).some(spanner =>
+      spanner.getAttribute('type') === 'Tie' && !!directChild(spanner,'next')
+    );
+  }
+
   function parseVoltaEndings(measure) {
     const endings = new Set();
     const spanners = Array.from(measure.getElementsByTagName('Spanner'));
@@ -1129,10 +1136,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
                 const key = cursor.toFixed(6) + '|' + duration.toFixed(6);
                 let event = localEvents.get(key);
                 if (!event) {
-                  event = {id:'m' + measureIndex + '-' + localEvents.size,beat:cursor,duration,pitches:[]};
+                  event = {id:'m' + measureIndex + '-' + localEvents.size,beat:cursor,duration,pitches:[],tiePitches:[]};
                   localEvents.set(key,event);
                 }
                 if (!event.pitches.includes(pitch)) event.pitches.push(pitch);
+                if ((hasMuseScoreTieForward(item) || hasMuseScoreTieForward(note)) && !event.tiePitches.includes(pitch)) event.tiePitches.push(pitch);
                 noteCount++;
               }
               cursor += duration;
@@ -1191,7 +1199,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       measureInfos.push({
         length:measureLength,
         events:Array.from(localEvents.values()).map(event => ({
-          ...event,pitches:event.pitches.sort((a,b) => a-b)
+          ...event,pitches:event.pitches.sort((a,b) => a-b),tiePitches:event.tiePitches.sort((a,b) => a-b)
         })),
         tempos:Array.from(localTempos.values()),
         repeatStart,
@@ -1372,10 +1380,12 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
                 const key = beat.toFixed(6) + '|' + duration.toFixed(6);
                 let event = localEvents.get(key);
                 if (!event) {
-                  event = {id:'xml-' + localEvents.size,beat,duration,pitches:[]};
+                  event = {id:'xml-' + localEvents.size,beat,duration,pitches:[],tiePitches:[]};
                   localEvents.set(key,event);
                 }
                 if (!event.pitches.includes(midi)) event.pitches.push(midi);
+                const tieForward = directChildren(item,'tie').some(tie => tie.getAttribute('type') === 'start') || Array.from(item.getElementsByTagName('tied')).some(tie => tie.getAttribute('type') === 'start');
+                if (tieForward && !event.tiePitches.includes(midi)) event.tiePitches.push(midi);
                 noteCount++;
               }
             }
@@ -1415,7 +1425,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       measureInfos.push({
         length:measureLength || nominalMeasureBeats,
         events:Array.from(localEvents.values()).map(event => ({
-          ...event,pitches:event.pitches.sort((a,b) => a-b)
+          ...event,pitches:event.pitches.sort((a,b) => a-b),tiePitches:event.tiePitches.sort((a,b) => a-b)
         })),
         tempos:localTempos,
         repeatStart,
@@ -1580,6 +1590,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       beat:Math.max(0,Number(event.beat) || 0),
       duration:Math.max(0.015625,Math.min(32,Number(event.duration) || 1)),
       pitches:Array.from(new Set((event.pitches || []).map(Number).filter(midi => Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI))).sort((a,b) => a-b),
+      tiePitches:Array.from(new Set((event.tiePitches || []).map(Number).filter(midi => Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI))),
       rest:!!event.rest
     })).filter(event => event.pitches.length || event.rest);
 
@@ -1904,33 +1915,29 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const startAt = playbackContext.currentTime + 0.12;
     let endAt = startAt;
 
-    for (const event of score.events) {
-      if (!event.pitches.length) continue;
-
-      const eventStart = startAt + scoreBeatToSeconds(event.beat);
-      const eventEnd = startAt + scoreBeatToSeconds(event.beat + event.duration);
+    for (const note of buildPitchTimeline()) {
+      const eventStart = startAt + scoreBeatToSeconds(note.beat);
+      const eventEnd = startAt + scoreBeatToSeconds(note.beat + note.duration);
       endAt = Math.max(endAt,eventEnd);
 
-      for (const midi of event.pitches) {
-        const oscillator = playbackContext.createOscillator();
-        const gain = playbackContext.createGain();
-        oscillator.type = 'triangle';
-        oscillator.frequency.value = midiToFrequency(midi);
-        gain.gain.setValueAtTime(0.0001,eventStart);
-        gain.gain.exponentialRampToValueAtTime(0.12,eventStart + 0.025);
-        gain.gain.setValueAtTime(0.12,Math.max(eventStart + 0.03,eventEnd - 0.045));
-        gain.gain.exponentialRampToValueAtTime(0.0001,Math.max(eventStart + 0.05,eventEnd));
-        oscillator.connect(gain);
-        gain.connect(playbackContext.destination);
-        oscillator.start(eventStart);
-        oscillator.stop(eventEnd + 0.02);
-      }
+      const oscillator = playbackContext.createOscillator();
+      const gain = playbackContext.createGain();
+      oscillator.type = 'triangle';
+      oscillator.frequency.value = midiToFrequency(note.midi);
+      gain.gain.setValueAtTime(0.0001,eventStart);
+      gain.gain.exponentialRampToValueAtTime(0.12,eventStart + 0.025);
+      gain.gain.setValueAtTime(0.12,Math.max(eventStart + 0.03,eventEnd - 0.045));
+      gain.gain.exponentialRampToValueAtTime(0.0001,Math.max(eventStart + 0.05,eventEnd));
+      oscillator.connect(gain);
+      gain.connect(playbackContext.destination);
+      oscillator.start(eventStart);
+      oscillator.stop(eventEnd + 0.02);
     }
 
     $('previewScore').disabled = true;
     $('stopPreview').disabled = false;
     playbackTimer = setTimeout(() => stopPreview(),Math.max(250,(endAt-startAt)*1000 + 400));
-    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化与反复顺序）。';
+    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化、反复顺序和连音时值）。';
   }
   function switchMode(nextMode) {
     if (nextMode === mode) return;
@@ -1979,35 +1986,77 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     return {left:left + width * 0.14,width:width * 0.72,black:false};
   }
 
+  function buildPitchTimeline() {
+    const notes = [];
+    for (const event of score.events) {
+      for (const midi of event.pitches) {
+        notes.push({
+          id:event.id + '-' + midi,
+          midi,
+          beat:event.beat,
+          duration:event.duration,
+          tieForward:Array.isArray(event.tiePitches) && event.tiePitches.includes(midi)
+        });
+      }
+    }
+
+    notes.sort((a,b) => a.beat-b.beat || a.midi-b.midi);
+    const consumed = new Set();
+    const merged = [];
+
+    for (const note of notes) {
+      if (consumed.has(note)) continue;
+      consumed.add(note);
+      let duration = note.duration;
+      let tieForward = note.tieForward;
+
+      while (tieForward) {
+        const expectedBeat = note.beat + duration;
+        const continuation = notes.find(candidate =>
+          !consumed.has(candidate) &&
+          candidate.midi === note.midi &&
+          Math.abs(candidate.beat-expectedBeat) < 0.001
+        );
+        if (!continuation) break;
+
+        consumed.add(continuation);
+        duration += continuation.duration;
+        tieForward = continuation.tieForward;
+      }
+
+      merged.push({...note,duration});
+    }
+
+    return merged;
+  }
+
   function createChallengeNotes() {
     const startAt = challengeStartAt;
     const unique = new Map();
 
-    score.events.forEach((event,eventIndex) => {
-      event.pitches.forEach(midi => {
-        const eventStartSeconds = scoreBeatToSeconds(event.beat);
-        const eventEndSeconds = scoreBeatToSeconds(event.beat + event.duration);
-        const hitAt = startAt + eventStartSeconds;
-        const durationSeconds = Math.max(0.015,eventEndSeconds - eventStartSeconds);
-        const key = hitAt.toFixed(4) + '|' + midi;
-        const existing = unique.get(key);
+    for (const note of buildPitchTimeline()) {
+      const eventStartSeconds = scoreBeatToSeconds(note.beat);
+      const eventEndSeconds = scoreBeatToSeconds(note.beat + note.duration);
+      const hitAt = startAt + eventStartSeconds;
+      const durationSeconds = Math.max(0.015,eventEndSeconds - eventStartSeconds);
+      const key = hitAt.toFixed(4) + '|' + note.midi;
+      const existing = unique.get(key);
 
-        if (existing) {
-          existing.durationSeconds = Math.max(existing.durationSeconds,durationSeconds);
-        } else {
-          unique.set(key,{
-            id:event.id + '-' + midi + '-' + eventIndex,
-            midi,
-            duration:event.duration,
-            durationSeconds,
-            hitAt,
-            bar:null,
-            barHeight:0,
-            state:'pending'
-          });
-        }
-      });
-    });
+      if (existing) {
+        existing.durationSeconds = Math.max(existing.durationSeconds,durationSeconds);
+      } else {
+        unique.set(key,{
+          id:note.id,
+          midi:note.midi,
+          duration:note.duration,
+          durationSeconds,
+          hitAt,
+          bar:null,
+          barHeight:0,
+          state:'pending'
+        });
+      }
+    }
 
     return Array.from(unique.values()).sort((a,b) => a.hitAt-b.hitAt || a.midi-b.midi);
   }
