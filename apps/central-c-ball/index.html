@@ -278,8 +278,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const MAX_MIDI = 108;
   const FFT_SIZE = 32768;
   const HIT_TOLERANCE_CENTS = 55;
-  const CORE_HARMONIC_THRESHOLD = 0.38;
-  const ACTIVATE_HITS = 2;
+  const CORE_HARMONIC_THRESHOLD = 0.30;
+  const ACTIVATE_HITS = 1;
   const RELEASE_MISSES = 5;
   const ANALYSIS_INTERVAL_MS = 30;
   const MAX_POLYPHONY = 12;
@@ -556,7 +556,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       if (centsError > HIT_TOLERANCE_CENTS) return {value:0,peak};
 
       const relativeLevel = peak / maxMagnitude;
-      if (relativeLevel < 0.00035) return {value:0,peak};
+      if (relativeLevel < 0.00020) return {value:0,peak};
 
       let floorSum = 0;
       let floorCount = 0;
@@ -571,8 +571,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const localFloor = floorCount ? floorSum / floorCount : 0;
       const ratio = peak / (localFloor + 1e-8);
       const contrastDb = 20 * Math.log10(ratio);
-      const contrast = Math.max(0,Math.min(1,(contrastDb - 2.5) / 12));
-      const amplitudeGate = Math.max(0,Math.min(1,relativeLevel / 0.0012));
+      const contrast = Math.max(0,Math.min(1,(contrastDb - 1.8) / 10));
+      const amplitudeGate = Math.max(0,Math.min(1,relativeLevel / 0.00075));
       return {value:contrast * amplitudeGate,peak};
     }
 
@@ -601,13 +601,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const fundamentalEvidence = harmonicEvidence[0] || 0;
       const coreStrongCount = harmonicEvidence.slice(1,4)
         .filter(value => value > CORE_HARMONIC_THRESHOLD).length;
-      const supportCount = harmonicEvidence.filter(value => value > 0.14).length;
+      const supportCount = harmonicEvidence.filter(value => value > 0.10).length;
       const score = weightedScore / (totalWeight || 1);
       const enoughHarmonics = harmonicEvidence.length >= 4
         ? coreStrongCount >= 1 && supportCount >= 2
         : supportCount >= Math.min(2,harmonicEvidence.length);
 
-      if (fundamentalEvidence > 0.12 && enoughHarmonics && score > 0.10) {
+      if (fundamentalEvidence > 0.085 && enoughHarmonics && score > 0.075) {
         candidates.push({
           midi,
           frequency:fundamentalHz,
@@ -622,7 +622,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     const strongestScore = Math.max(...candidates.map(candidate => candidate.score));
     const viable = candidates
-      .filter(candidate => candidate.score >= Math.max(0.09,strongestScore * 0.15))
+      .filter(candidate => candidate.score >= Math.max(0.065,strongestScore * 0.12))
       .sort((a,b) => a.midi-b.midi);
 
     const selected = [];
@@ -662,8 +662,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         if (
           activeMidis.has(midi) &&
           previousAmplitude > 1e-7 &&
-          candidate.amplitude > previousAmplitude * 1.45 &&
-          now - lastAttackAt[midi] > 0.12
+          candidate.amplitude > previousAmplitude * 1.30 &&
+          now - lastAttackAt[midi] > 0.09
         ) {
           lastAttackAt[midi] = now;
         }
@@ -721,7 +721,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     analyser.getFloatFrequencyData(spectrumData);
     const maxMagnitude = fillMagnitudes();
 
-    const detectedNotes = inputLevel.rms < 0.00024
+    const detectedNotes = inputLevel.rms < 0.00012
       ? []
       : detectPolyphonicNotes(context.sampleRate, maxMagnitude);
 
@@ -914,18 +914,41 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     return found ? found[1] : null;
   }
 
+  function attachMuseScoreFermata(pauses,timedItem,stretch) {
+    if (!timedItem || !Number.isFinite(stretch) || stretch <= 1.0001) return false;
+    pauses.push({
+      startBeat:timedItem.startBeat,
+      endBeat:timedItem.startBeat + timedItem.duration,
+      stretch
+    });
+    return true;
+  }
+
   function parseMuseScoreFermataStretch(node) {
-    const explicit = Number(childText(node,'timeStretch',''));
+    const rawStretch = childText(node,'timeStretch','');
+    const explicit = rawStretch.trim() ? Number(rawStretch) : NaN;
     if (Number.isFinite(explicit) && explicit > 0) {
       return Math.max(1,Math.min(8,explicit));
     }
 
-    const subtype = childText(node,'subtype','fermataAbove').toLowerCase();
-    if (subtype.includes('veryshort')) return 1.25;
-    if (subtype.includes('short')) return 1.5;
-    if (subtype.includes('verylong')) return 4;
-    if (subtype.includes('long')) return 3;
-    return 2;
+    // MuseScore 4 file defaults (fermata.cpp): these differ from the
+    // defaults used when inserting a new symbol from the palette.
+    const subtype = childText(node,'subtype','fermataAbove').trim();
+    const fileDefaults = {
+      fermataVeryShortAbove:1.25,
+      fermataVeryShortBelow:1.25,
+      fermataShortAbove:1.5,
+      fermataShortBelow:1.5,
+      fermataShortHenzeAbove:1.5,
+      fermataShortHenzeBelow:1.5,
+      fermataLongAbove:3,
+      fermataLongBelow:3,
+      fermataLongHenzeAbove:3,
+      fermataLongHenzeBelow:3,
+      fermataVeryLongAbove:4,
+      fermataVeryLongBelow:4
+    };
+    return fileDefaults[subtype] || 2;
   }
 
   function collectMuseScoreFermataStretch(node) {
@@ -1244,7 +1267,12 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
             }
 
             if (item.localName === 'Fermata') {
-              pendingFermataStretch = Math.max(pendingFermataStretch,parseMuseScoreFermataStretch(item));
+              const stretch = parseMuseScoreFermataStretch(item);
+              // MuseScore 4 writes a Fermata immediately AFTER the Chord/Rest
+              // it annotates. Only a leading fermata (before the first timed
+              // item in this voice) belongs to the next Chord/Rest.
+              const attached = attachMuseScoreFermata(localFermatas,previousTimedItem,stretch);
+              if (!attached) pendingFermataStretch = Math.max(pendingFermataStretch,stretch);
               continue;
             }
 
@@ -1297,17 +1325,6 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
               previousTimedItem = {startBeat,duration};
               cursor += duration;
             }
-          }
-
-          // MuseScore may serialize a final fermata after the last chord/rest.
-          // Prefer the next chord/rest when one follows; only fall back to the
-          // preceding item when the fermata is the last timed item in the voice.
-          if (pendingFermataStretch > 1 && previousTimedItem) {
-            localFermatas.push({
-              startBeat:previousTimedItem.startBeat,
-              endBeat:previousTimedItem.startBeat + previousTimedItem.duration,
-              stretch:pendingFermataStretch
-            });
           }
 
           if (cursor > longestVoice) longestVoice = cursor;
