@@ -4,121 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090d18">
-<meta name="description" content="88 键钢琴音高识别球：实时识别麦克风中的音高，点亮对应钢琴音符。">
-<title>88 键钢琴 · 音高感应球</title>
+<meta name="description" content="88 键钢琴音高识别：实时识别麦克风中的音高，并点亮对应琴键。">
+<title>88 键钢琴 · 音高识别</title>
 <style>
-:root{
-  color-scheme:dark;
-  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;
-  background:#090d18;
-  color:#edf2ff;
-}
+:root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;background:#090d18;color:#edf2ff}
 *{box-sizing:border-box}
-body{
-  min-height:100vh;
-  margin:0;
-  background:
-    radial-gradient(ellipse at 50% 10%,rgba(55,88,165,.22),transparent 38%),
-    radial-gradient(ellipse at 20% 18%,rgba(86,52,142,.14),transparent 30%),
-    #090d18;
-}
-.app{
-  width:min(100% - 24px,1180px);
-  margin:0 auto;
-  padding:28px 0 30px;
-  text-align:center;
-}
+body{min-height:100vh;margin:0;background:radial-gradient(ellipse at 50% 8%,rgba(55,88,165,.22),transparent 38%),#090d18}
+.app{width:100%;max-width:1500px;margin:0 auto;padding:clamp(18px,3vh,34px) 12px 28px;text-align:center}
 .eyebrow{color:#8b9bbb;font-size:11px;font-weight:700;letter-spacing:.22em}
-h1{margin:12px 0 8px;font-size:clamp(28px,4vw,44px);letter-spacing:-.04em}
-.subtitle{margin:0 auto;color:#94a3bd;font-size:14px;line-height:1.8;max-width:680px}
-.keyboard-shell{
-  margin:28px auto 12px;
-  padding:18px 16px 16px;
-  border:1px solid rgba(142,163,202,.12);
-  border-radius:20px;
-  background:rgba(18,25,42,.78);
-  box-shadow:0 18px 60px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.03);
-}
-.keyboard-caption{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:8px;
-  color:#7f8faa;
-  font-size:12px;
-  margin-bottom:12px;
-}
-.scroll-hint{font-size:11px;color:#6f7f99}
-.keyboard-scroll{
-  overflow-x:auto;
-  overflow-y:hidden;
-  padding-bottom:10px;
-  scrollbar-width:thin;
-  scrollbar-color:#4f648b transparent;
-}
-.keyboard-scroll::-webkit-scrollbar{height:8px}
-.keyboard-scroll::-webkit-scrollbar-thumb{background:#3f5275;border-radius:999px}
-.keyboard-scroll::-webkit-scrollbar-track{background:transparent}
-.balls{
-  display:flex;
-  align-items:flex-start;
-  gap:7px;
-  width:max-content;
-  min-width:100%;
-}
-.key{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:7px;
-  min-width:14px;
-  flex:0 0 auto;
-}
-.ball{
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  background:linear-gradient(180deg,#6f819f 0%,#42506b 100%);
-  opacity:.78;
-  box-shadow:inset 0 1px 1px rgba(255,255,255,.18), 0 0 0 1px rgba(255,255,255,.04);
-  transition:opacity 150ms ease, box-shadow 180ms ease, filter 180ms ease, background 180ms ease;
-}
-.key.active .ball{
-  background:radial-gradient(circle at 35% 30%,#edfbff 0%,#96e1ff 28%,#5ea6ff 58%,#4f66ea 100%);
-  opacity:1;
-  filter:brightness(1.15) saturate(1.2);
-  box-shadow:
-    0 0 10px rgba(104,198,255,.95),
-    0 0 22px rgba(91,117,255,.55),
-    0 0 34px rgba(91,117,255,.28),
-    inset 0 1px 1px rgba(255,255,255,.4);
-}
-.label{
-  font-size:9px;
-  line-height:1;
-  color:#5f708d;
-  letter-spacing:.01em;
-  min-height:10px;
-  user-select:none;
-}
-.key.marked .label{color:#8598b7}
-.key.active .label{color:#d6eaff}
-.state{
-  min-height:28px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:9px;
-  color:#a7b5cc;
-  font-size:13px;
-  margin-top:6px;
-}
+h1{margin:12px 0 8px;font-size:clamp(27px,4vw,42px);letter-spacing:-.04em}
+.subtitle{margin:0 auto;color:#94a3bd;font-size:14px;line-height:1.8;max-width:700px}
+.keyboard-shell{margin:clamp(22px,4vh,38px) auto 14px;padding:14px 10px 12px;border:1px solid rgba(142,163,202,.13);border-radius:18px;background:rgba(18,25,42,.82);box-shadow:0 18px 60px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.03)}
+.keyboard-caption{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#8797b2;font-size:12px;margin:0 2px 12px}
+.keyboard-caption strong{color:#d7e4fa;font-weight:650}
+.piano{position:relative;width:100%;height:clamp(112px,25vh,230px);overflow:hidden;user-select:none}
+.white-keys{position:absolute;inset:0;display:grid;grid-template-columns:repeat(52,minmax(0,1fr));height:100%}
+.white-key{position:relative;min-width:0;height:100%;border:0;border-right:1px solid rgba(20,29,45,.38);border-radius:0 0 3px 3px;background:linear-gradient(90deg,#dce3ee 0%,#fff 16%,#f4f6fa 82%,#cbd4e2 100%);box-shadow:inset 0 -5px 7px rgba(40,54,78,.16);transition:background 120ms ease,box-shadow 150ms ease}
+.white-key:first-child{border-left:1px solid rgba(20,29,45,.38)}
+.white-key.active{z-index:1;background:linear-gradient(180deg,#e9fbff 0%,#9bdfff 52%,#5daaff 100%);box-shadow:inset 0 -5px 8px rgba(20,74,151,.22),0 0 12px rgba(83,176,255,.8),0 0 28px rgba(83,140,255,.62)}
+.black-key{position:absolute;z-index:3;top:0;width:1.1924%;height:63%;transform:translateX(-50%);border:1px solid #080c14;border-top:0;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#050810 0%,#202a3b 28%,#111827 76%,#03060c 100%);box-shadow:0 4px 7px rgba(0,0,0,.48),inset 0 -3px 4px rgba(255,255,255,.06);transition:background 120ms ease,box-shadow 150ms ease}
+.black-key.active{background:linear-gradient(180deg,#bceeff 0%,#4ca8ff 50%,#315ce0 100%);box-shadow:0 0 9px rgba(104,198,255,.95),0 0 20px rgba(91,117,255,.7),0 4px 7px rgba(0,0,0,.4)}
+.octave-label{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:clamp(6px,.72vw,10px);font-weight:650;line-height:1;color:#8a97aa;pointer-events:none;white-space:nowrap}
+.white-key.active .octave-label{color:#08284a}
+.keyboard-legend{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#71819c;font-size:11px}
+.state{min-height:28px;display:flex;align-items:center;justify-content:center;gap:9px;color:#a7b5cc;font-size:13px;margin-top:8px}
 .dot{width:7px;height:7px;border-radius:50%;background:#65728a;box-shadow:0 0 0 4px rgba(101,114,138,.12)}
 .dot.live{background:#50d6a0;box-shadow:0 0 0 4px rgba(80,214,160,.12),0 0 14px rgba(80,214,160,.55)}
-.result{margin-top:13px;font-size:clamp(28px,6vw,44px);font-weight:750;letter-spacing:-.045em;line-height:1.1}
+.result{margin-top:12px;font-size:clamp(28px,6vw,44px);font-weight:750;letter-spacing:-.045em;line-height:1.1}
 .result small{display:block;margin-top:9px;color:#91a0bb;font-size:13px;font-weight:500;letter-spacing:.02em}
-.metrics{display:flex;justify-content:center;gap:12px;margin:24px auto 22px;max-width:540px;flex-wrap:wrap}
-.metric{flex:1 1 160px;padding:14px 10px;border:1px solid rgba(142,163,202,.13);border-radius:14px;background:rgba(19,27,45,.66)}
+.metrics{display:flex;justify-content:center;gap:12px;margin:22px auto 20px;max-width:560px;flex-wrap:wrap}
+.metric{flex:1 1 150px;padding:13px 10px;border:1px solid rgba(142,163,202,.13);border-radius:14px;background:rgba(19,27,45,.66)}
 .metric span{display:block;color:#8392ad;font-size:11px;margin-bottom:7px}
 .metric strong{font-size:17px;font-variant-numeric:tabular-nums}
 .controls{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
@@ -126,60 +41,73 @@ button{min-width:142px;border:0;border-radius:999px;padding:13px 22px;font:inher
 button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowed}
 .primary{color:#07111f;background:linear-gradient(110deg,#a4e8ff,#83aaff);box-shadow:0 8px 28px rgba(87,158,255,.2)}
 .secondary{color:#d3dcef;background:rgba(116,137,176,.13);border:1px solid rgba(142,163,202,.16)}
-.hint{max-width:720px;margin:22px auto 0;color:#72819c;font-size:12px;line-height:1.8}
-.error{min-height:20px;margin-top:12px;color:#ff9a9a;font-size:12px}
-.legend{margin-top:10px;color:#6f7f99;font-size:11px}
-@media (max-width: 640px){
-  .app{width:min(100% - 16px,1180px);padding-top:18px}
-  .keyboard-shell{padding:14px 10px 14px}
-  .keyboard-caption{align-items:flex-start;flex-direction:column}
-  .metrics{gap:8px}
-  .metric{padding:12px 6px;flex-basis:140px}
-  .metric strong{font-size:15px}
-  button{min-width:128px}
+.hint{max-width:760px;margin:20px auto 0;color:#72819c;font-size:12px;line-height:1.8}
+.error{min-height:20px;margin-top:10px;color:#ff9a9a;font-size:12px}
+@media(max-width:600px){
+  .app{padding:18px 4px 24px}
+  .keyboard-shell{padding:10px 4px 9px;border-radius:12px}
+  .keyboard-caption{font-size:10px;margin-bottom:9px}
+  .piano{height:clamp(104px,22vh,170px)}
+  .black-key{height:62%}
+  .keyboard-legend{font-size:9px;margin:8px 2px 0}
+  .metrics{gap:6px;margin:18px auto}
+  .metric{padding:11px 5px;flex-basis:100px}
+  .metric span{font-size:10px}
+  .metric strong{font-size:14px}
+  button{min-width:126px}
 }
 </style>
 </head>
 <body>
 <main class="app">
-  <div class="eyebrow">REAL-TIME PITCH DETECTOR · 88 KEYS</div>
-  <h1>88 键钢琴 · 音高感应球</h1>
-  <p class="subtitle">把原来的单个小球改成一排 88 个更小的小球，对应钢琴 88 个音。从 A0 到 C8，识别到哪个音，对应小球就会发亮。</p>
-  <section class="keyboard-shell" aria-label="88 键音高可视化">
+  <div class="eyebrow">REAL-TIME PITCH DETECTOR · FULL 88-KEY PIANO</div>
+  <h1>88 键钢琴 · 音高识别</h1>
+  <p class="subtitle">完整显示钢琴 A0 到 C8 的 88 个琴键。弹奏哪个音，对应琴键就会发亮。</p>
+
+  <section class="keyboard-shell" aria-label="完整钢琴 88 键键盘">
     <div class="keyboard-caption">
-      <span>钢琴 88 键：A0 → C8</span>
-      <span class="scroll-hint">手机上可左右滑动查看整排小球</span>
+      <strong>钢琴全键盘</strong>
+      <span>A0（最低音） <span aria-hidden="true">→</span> C8（最高音）</span>
     </div>
-    <div class="keyboard-scroll" id="keyboardScroll">
-      <div class="balls" id="balls"></div>
+    <div class="piano" id="piano">
+      <div class="white-keys" id="whiteKeys"></div>
     </div>
-    <div class="legend">每个小球对应一个钢琴音；识别到对应声音时会发光。</div>
+    <div class="keyboard-legend">
+      <span>白键：52 个</span>
+      <span>黑键：36 个</span>
+      <span>总计：88 个琴键</span>
+    </div>
   </section>
+
   <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
-  <div class="result" id="result">等待音高<small id="detail">当前目标：任意钢琴 88 键音高</small></div>
+  <div class="result" id="result">等待音高<small>目标范围：钢琴 A0 – C8</small></div>
   <div class="metrics">
     <div class="metric"><span>当前频率</span><strong id="frequency">-- Hz</strong></div>
     <div class="metric"><span>识别音符</span><strong id="note">--</strong></div>
-    <div class="metric"><span>相对误差</span><strong id="cents">--</strong></div>
+    <div class="metric"><span>音分误差</span><strong id="cents">--</strong></div>
   </div>
   <div class="controls">
     <button class="primary" id="start">开始监听</button>
     <button class="secondary" id="stop" disabled>停止</button>
   </div>
   <div class="error" id="error" role="status" aria-live="polite"></div>
-  <p class="hint">请允许浏览器访问麦克风。建议使用钢琴、电子琴或比较纯净的人声音高，在安静环境中测试。识别到音高后，会自动映射到最近的钢琴键并点亮对应小球。音频仅在本机浏览器内处理，不会上传。</p>
+  <p class="hint">请允许浏览器访问麦克风。识别到音高后，会点亮对应的白键或黑键。音频仅在本机浏览器内处理，不会上传。当前使用单音音高识别，一次主要识别一个音。</p>
 </main>
 <script>
 (() => {
+  'use strict';
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const MIN_MIDI = 21;
-  const MAX_MIDI = 108;
+  const WHITE_PITCH_CLASSES = new Set([0,2,4,5,7,9,11]);
+  const MIN_MIDI = 21; // A0
+  const MAX_MIDI = 108; // C8
+  const WHITE_KEY_COUNT = 52;
   const HIT_TOLERANCE_CENTS = 35;
   const ACTIVATE_HITS = 2;
   const RELEASE_MISSES = 3;
+
   const $ = id => document.getElementById(id);
-  const ballsContainer = $('balls');
-  const keyboardScroll = $('keyboardScroll');
+  const piano = $('piano');
+  const whiteKeysContainer = $('whiteKeys');
   const dot = $('dot');
   const status = $('status');
   const result = $('result');
@@ -189,9 +117,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const errorEl = $('error');
   const startButton = $('start');
   const stopButton = $('stop');
+
+  const keyElements = new Map();
   let context = null;
   let stream = null;
   let analyser = null;
+  let source = null;
+  let rawSamples = null;
   let samples = null;
   let raf = 0;
   let lastAnalysis = 0;
@@ -199,99 +131,120 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   let candidateMidi = null;
   let candidateHits = 0;
   let misses = 0;
-  let source = null;
-  const pianoKeys = [];
+  let starting = false;
 
   function midiToFrequency(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
+
   function midiToNoteName(midi) {
     return NOTE_NAMES[(midi % 12 + 12) % 12] + (Math.floor(midi / 12) - 1);
   }
-  function isMarkedKey(midi) {
-    return midi === MIN_MIDI || midi === MAX_MIDI || (midi % 12 === 0);
-  }
-  function buildPianoBalls() {
-    const fragment = document.createDocumentFragment();
+
+  function buildKeyboard() {
+    const whiteFragment = document.createDocumentFragment();
+    let whiteIndex = -1;
+    let whiteCount = 0;
+
     for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
-      const note = midiToNoteName(midi);
+      const pitchClass = midi % 12;
+      const noteName = midiToNoteName(midi);
       const key = document.createElement('div');
-      key.className = 'key' + (isMarkedKey(midi) ? ' marked' : '');
       key.dataset.midi = String(midi);
-      key.title = note + ' · ' + midiToFrequency(midi).toFixed(2) + ' Hz';
-      const ball = document.createElement('div');
-      ball.className = 'ball';
-      ball.setAttribute('aria-hidden', 'true');
-      const label = document.createElement('div');
-      label.className = 'label';
-      label.textContent = isMarkedKey(midi) ? note : '';
-      key.appendChild(ball);
-      key.appendChild(label);
-      fragment.appendChild(key);
-      pianoKeys.push(key);
+      key.title = noteName + ' · ' + midiToFrequency(midi).toFixed(2) + ' Hz';
+
+      if (WHITE_PITCH_CLASSES.has(pitchClass)) {
+        whiteIndex++;
+        whiteCount++;
+        key.className = 'white-key';
+        if (pitchClass === 0) {
+          const label = document.createElement('span');
+          label.className = 'octave-label';
+          label.textContent = noteName;
+          key.appendChild(label);
+        }
+        whiteFragment.appendChild(key);
+      } else {
+        key.className = 'black-key';
+        key.style.left = ((whiteIndex + 1) / WHITE_KEY_COUNT * 100).toFixed(6) + '%';
+        piano.appendChild(key);
+      }
+
+      keyElements.set(midi, key);
     }
-    ballsContainer.appendChild(fragment);
+
+    whiteKeysContainer.appendChild(whiteFragment);
+
+    if (whiteCount !== WHITE_KEY_COUNT || keyElements.size !== 88) {
+      throw new Error('钢琴键盘数量校验失败：白键 ' + whiteCount + '，总键数 ' + keyElements.size);
+    }
   }
+
   function setActiveKey(midi) {
     if (currentActiveMidi === midi) return;
+
     if (currentActiveMidi !== null) {
-      const oldKey = pianoKeys[currentActiveMidi - MIN_MIDI];
-      if (oldKey) oldKey.classList.remove('active');
+      const previous = keyElements.get(currentActiveMidi);
+      if (previous) previous.classList.remove('active');
     }
+
     currentActiveMidi = midi;
     if (midi !== null) {
-      const key = pianoKeys[midi - MIN_MIDI];
-      if (key) {
-        key.classList.add('active');
-        const keyCenter = key.offsetLeft + key.offsetWidth / 2;
-        const target = Math.max(0, keyCenter - keyboardScroll.clientWidth / 2);
-        keyboardScroll.scrollTo({ left: target, behavior: 'smooth' });
-      }
+      const current = keyElements.get(midi);
+      if (current) current.classList.add('active');
     }
   }
+
   function clearPitchUI() {
     frequencyEl.textContent = '-- Hz';
     noteEl.textContent = '--';
     centsEl.textContent = '--';
-    result.innerHTML = '等待音高<small>当前目标：任意钢琴 88 键音高</small>';
+    result.innerHTML = '等待音高<small>目标范围：钢琴 A0 – C8</small>';
   }
+
   function setListeningUI() {
-    result.innerHTML = '监听中<small>请演奏 A0 到 C8 之间的任意钢琴音</small>';
+    result.innerHTML = '监听中<small>请演奏钢琴 88 键范围内的任意音符</small>';
     status.textContent = '正在监听，请演奏钢琴音高';
   }
+
   function detectPitch(input, sampleRate) {
     const n = input.length;
     let mean = 0;
     for (let i = 0; i < n; i++) mean += input[i];
     mean /= n;
+
     const data = new Float32Array(n);
     let energy = 0;
     for (let i = 0; i < n; i++) {
-      const v = input[i] - mean;
-      data[i] = v;
-      energy += v * v;
+      const value = input[i] - mean;
+      data[i] = value;
+      energy += value * value;
     }
     if (Math.sqrt(energy / n) < 0.0065) return null;
+
     const minTau = Math.max(2, Math.floor(sampleRate / 4200));
     const maxTau = Math.min(Math.floor(sampleRate / 25), Math.floor(n / 2));
     if (maxTau <= minTau) return null;
+
     const compareLength = n - maxTau;
     const diff = new Float32Array(maxTau + 1);
     for (let tau = 1; tau <= maxTau; tau++) {
       let sum = 0;
       for (let i = 0; i < compareLength; i++) {
-        const d = data[i] - data[i + tau];
-        sum += d * d;
+        const delta = data[i] - data[i + tau];
+        sum += delta * delta;
       }
       diff[tau] = sum;
     }
+
     const cmnd = new Float32Array(maxTau + 1);
     cmnd[0] = 1;
     let running = 0;
     for (let tau = 1; tau <= maxTau; tau++) {
       running += diff[tau];
-      cmnd[tau] = running === 0 ? 1 : (diff[tau] * tau) / running;
+      cmnd[tau] = running === 0 ? 1 : diff[tau] * tau / running;
     }
+
     let chosen = -1;
     for (let tau = minTau; tau < maxTau; tau++) {
       if (cmnd[tau] < 0.12) {
@@ -300,6 +253,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         break;
       }
     }
+
     if (chosen < 0) {
       let best = 1;
       for (let tau = minTau; tau <= maxTau; tau++) {
@@ -310,6 +264,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
       if (chosen < 0 || best > 0.25) return null;
     }
+
     let refined = chosen;
     if (chosen > 0 && chosen < maxTau) {
       const a = cmnd[chosen - 1];
@@ -318,31 +273,43 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const denominator = 2 * (a - 2 * b + c);
       if (Math.abs(denominator) > 1e-9) refined += (a - c) / denominator;
     }
+
     const hz = sampleRate / refined;
     if (!Number.isFinite(hz) || hz < 25 || hz > 4200) return null;
     return { hz, confidence: 1 - cmnd[chosen] };
   }
+
   function pitchToMidi(hz) {
     return Math.round(69 + 12 * Math.log2(hz / 440));
   }
+
   function midiDistanceInCents(hz, midi) {
     return 1200 * Math.log2(hz / midiToFrequency(midi));
   }
-  function releaseActiveKey(reasonText) {
+
+  function releaseActiveKey(message) {
     candidateMidi = null;
     candidateHits = 0;
     misses = 0;
     setActiveKey(null);
-    result.innerHTML = '监听中<small>请演奏 A0 到 C8 之间的任意钢琴音</small>';
-    status.textContent = reasonText || '正在监听，请演奏钢琴音高';
+    result.innerHTML = '监听中<small>请演奏钢琴 88 键范围内的任意音符</small>';
+    status.textContent = message || '正在监听，请演奏钢琴音高';
   }
+
   function analyse(timestamp) {
-    if (!analyser || !samples || !context) return;
+    if (!analyser || !rawSamples || !samples || !context) return;
     raf = requestAnimationFrame(analyse);
     if (timestamp - lastAnalysis < 45) return;
     lastAnalysis = timestamp;
-    analyser.getFloatTimeDomainData(samples);
-    const pitch = detectPitch(samples, context.sampleRate);
+
+    analyser.getFloatTimeDomainData(rawSamples);
+
+    // 降采样一半，保留 88 键音域所需带宽，降低实时 YIN 运算量。
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = (rawSamples[i * 2] + rawSamples[i * 2 + 1]) * 0.5;
+    }
+
+    const pitch = detectPitch(samples, context.sampleRate / 2);
     if (!pitch) {
       misses++;
       if (misses >= RELEASE_MISSES) {
@@ -353,6 +320,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
       return;
     }
+
     const midi = pitchToMidi(pitch.hz);
     if (midi < MIN_MIDI || midi > MAX_MIDI) {
       misses++;
@@ -364,85 +332,55 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
       return;
     }
+
     const cents = midiDistanceInCents(pitch.hz, midi);
     const noteName = midiToNoteName(midi);
     frequencyEl.textContent = pitch.hz.toFixed(1) + ' Hz';
     noteEl.textContent = noteName;
     centsEl.textContent = (cents > 0 ? '+' : '') + Math.round(cents) + ' ct';
-    const isStable = pitch.confidence >= 0.68 && Math.abs(cents) <= HIT_TOLERANCE_CENTS;
-    if (!isStable) {
+
+    const stable = pitch.confidence >= 0.68 && Math.abs(cents) <= HIT_TOLERANCE_CENTS;
+    if (!stable) {
       misses++;
       if (misses >= RELEASE_MISSES) {
         releaseActiveKey('已听到 ' + noteName + '，但音高还不够稳定');
       } else if (currentActiveMidi === null) {
-        status.textContent = '正在靠近 ' + noteName + '，请保持音高稳定';
+        status.textContent = '正在识别 ' + noteName + '，请保持音高稳定';
       }
       return;
     }
+
     misses = 0;
     if (candidateMidi === midi) candidateHits++;
     else {
       candidateMidi = midi;
       candidateHits = 1;
     }
+
     if (candidateHits >= ACTIVATE_HITS) {
       setActiveKey(midi);
-      result.innerHTML = noteName + '<small>已识别到对应钢琴音，对应小球正在发亮</small>';
+      result.innerHTML = noteName + '<small>已识别对应琴键，正在发亮</small>';
       status.textContent = '正在检测到 ' + noteName;
     }
   }
-  async function start() {
-    errorEl.textContent = '';
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      errorEl.textContent = '浏览器不支持麦克风访问，请使用 HTTPS 地址或 localhost 打开。';
-      return;
-    }
-    startButton.disabled = true;
-    status.textContent = '正在请求麦克风权限…';
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-      });
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      context = new AudioContextClass();
-      await context.resume();
-      analyser = context.createAnalyser();
-      analyser.fftSize = 8192;
-      analyser.smoothingTimeConstant = 0;
-      source = context.createMediaStreamSource(stream);
-      source.connect(analyser);
-      samples = new Float32Array(analyser.fftSize);
-      candidateMidi = null;
-      candidateHits = 0;
-      misses = 0;
-      setActiveKey(null);
-      setListeningUI();
-      dot.classList.add('live');
-      stopButton.disabled = false;
-      lastAnalysis = 0;
-      raf = requestAnimationFrame(analyse);
-    } catch (e) {
-      startButton.disabled = false;
-      dot.classList.remove('live');
-      status.textContent = '麦克风未启动';
-      errorEl.textContent = (e && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError'))
-        ? '麦克风权限被拒绝，请在浏览器网站权限中允许麦克风。'
-        : '无法启动麦克风：' + (e && e.message ? e.message : '未知错误');
-    }
-  }
+
   async function stop() {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
+
     if (stream) stream.getTracks().forEach(track => track.stop());
     stream = null;
+
     if (context && context.state !== 'closed') await context.close();
     context = null;
     analyser = null;
-    samples = null;
     source = null;
+    rawSamples = null;
+    samples = null;
     candidateMidi = null;
     candidateHits = 0;
     misses = 0;
+
     setActiveKey(null);
     dot.classList.remove('live');
     status.textContent = '尚未启动麦克风监听';
@@ -450,11 +388,79 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     startButton.disabled = false;
     stopButton.disabled = true;
   }
-  buildPianoBalls();
+
+  async function start() {
+    if (starting || context) return;
+    errorEl.textContent = '';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      errorEl.textContent = '浏览器不支持麦克风访问，请使用 HTTPS 地址或 localhost 打开。';
+      return;
+    }
+
+    starting = true;
+    startButton.disabled = true;
+    status.textContent = '正在请求麦克风权限…';
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      context = new AudioContextClass();
+      await context.resume();
+
+      analyser = context.createAnalyser();
+      analyser.fftSize = 8192;
+      analyser.smoothingTimeConstant = 0;
+      source = context.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      rawSamples = new Float32Array(analyser.fftSize);
+      samples = new Float32Array(analyser.fftSize / 2);
+      candidateMidi = null;
+      candidateHits = 0;
+      misses = 0;
+
+      setActiveKey(null);
+      setListeningUI();
+      dot.classList.add('live');
+      stopButton.disabled = false;
+      lastAnalysis = 0;
+      raf = requestAnimationFrame(analyse);
+    } catch (error) {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      stream = null;
+      if (context && context.state !== 'closed') await context.close();
+      context = null;
+      analyser = null;
+      source = null;
+      rawSamples = null;
+      samples = null;
+
+      startButton.disabled = false;
+      dot.classList.remove('live');
+      status.textContent = '麦克风未启动';
+      errorEl.textContent = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
+        ? '麦克风权限被拒绝，请在浏览器网站权限中允许麦克风。'
+        : '无法启动麦克风：' + (error && error.message ? error.message : '未知错误');
+    } finally {
+      starting = false;
+    }
+  }
+
+  buildKeyboard();
   clearPitchUI();
   startButton.addEventListener('click', start);
-  stopButton.addEventListener('click', stop);
-  window.addEventListener('beforeunload', () => {
+  stopButton.addEventListener('click', () => {
+    if (!starting) stop();
+  });
+  window.addEventListener('pagehide', () => {
     if (stream) stream.getTracks().forEach(track => track.stop());
   });
 })();
