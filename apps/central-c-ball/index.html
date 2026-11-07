@@ -635,10 +635,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         if (harmonic < 2 || harmonic > 16) continue;
 
         const harmonicErrorCents = Math.abs(1200 * Math.log2(ratio / harmonic));
-        // Do not discard a real octave/fifth in a chord merely because
-        // its pitch also coincides with a lower note's harmonic. Suppress it
-        // only when its own fundamental is weak relative to the lower note.
-        const likelyOvertone = candidate.amplitude < lower.amplitude * 0.45;
+        // Preserve real chord tones at common octave/fifth intervals.
+        // A true octave usually has a stronger independent fundamental than
+        // the lower note's 2nd partial; higher partials use stricter masking.
+        const harmonicAmplitudeLimit = harmonic === 2 ? 0.55
+          : harmonic === 3 ? 0.40
+          : 0.30;
+        const likelyOvertone = candidate.amplitude < lower.amplitude * harmonicAmplitudeLimit;
         if (harmonicErrorCents < 24 &&
             lower.score >= candidate.score * 0.55 &&
             likelyOvertone) {
