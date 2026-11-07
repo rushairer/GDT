@@ -278,9 +278,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const MAX_MIDI = 108;
   const FFT_SIZE = 32768;
   const HIT_TOLERANCE_CENTS = 35;
-  const CORE_HARMONIC_THRESHOLD = 0.50;
+  const CORE_HARMONIC_THRESHOLD = 0.38;
   const ACTIVATE_HITS = 2;
-  const RELEASE_MISSES = 4;
+  const RELEASE_MISSES = 5;
+  const ANALYSIS_INTERVAL_MS = 30;
   const MAX_POLYPHONY = 12;
   const FALL_SECONDS = 2.2;
   const HIT_EARLY_WINDOW = 0.32;
@@ -321,6 +322,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const missCounts = new Uint8Array(MAX_MIDI + 1);
   const lastAttackAt = new Float64Array(MAX_MIDI + 1);
   const consumedAttackAt = new Float64Array(MAX_MIDI + 1);
+  const candidateAmplitudes = new Float32Array(MAX_MIDI + 1);
 
   let mode = 'live';
   let score = createEmptyScore();
@@ -467,6 +469,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     missCounts.fill(0);
     lastAttackAt.fill(-Infinity);
     consumedAttackAt.fill(-Infinity);
+    candidateAmplitudes.fill(0);
   }
 
   function setListeningUI() {
@@ -516,23 +519,23 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   }
 
   function detectPolyphonicNotes(sampleRate, maxMagnitude) {
-    if (maxMagnitude < 1e-7) return [];
+    if (maxMagnitude < 1e-8) return [];
     const binHz = sampleRate / FFT_SIZE;
     const nyquist = sampleRate / 2;
 
     function evidenceAt(frequency) {
       const center = Math.round(frequency / binHz);
-      if (center < 2 || center >= magnitudeData.length - 1) return 0;
+      if (center < 2 || center >= magnitudeData.length - 1) return {value:0,peak:0};
 
       let peak = 0;
       for (let offset = -1; offset <= 1; offset++) {
         const value = magnitudeData[center + offset];
         if (value > peak) peak = value;
       }
-      if (peak <= 0) return 0;
+      if (peak <= 0) return {value:0,peak:0};
 
       const relativeLevel = peak / maxMagnitude;
-      if (relativeLevel < 0.0007) return 0;
+      if (relativeLevel < 0.00035) return {value:0,peak};
 
       let floorSum = 0;
       let floorCount = 0;
@@ -547,9 +550,9 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const localFloor = floorCount ? floorSum / floorCount : 0;
       const ratio = peak / (localFloor + 1e-8);
       const contrastDb = 20 * Math.log10(ratio);
-      const contrast = Math.max(0, Math.min(1, (contrastDb - 4) / 15));
-      const amplitudeGate = Math.max(0, Math.min(1, relativeLevel / 0.002));
-      return contrast * amplitudeGate;
+      const contrast = Math.max(0,Math.min(1,(contrastDb - 2.5) / 12));
+      const amplitudeGate = Math.max(0,Math.min(1,relativeLevel / 0.0012));
+      return {value:contrast * amplitudeGate,peak};
     }
 
     const candidates = [];
@@ -559,30 +562,38 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const harmonicEvidence = [];
       let weightedScore = 0;
       let totalWeight = 0;
+      let fundamentalAmplitude = 0;
 
       for (let harmonic = 1; harmonic <= HARMONIC_WEIGHTS.length; harmonic++) {
         const harmonicHz = fundamentalHz * harmonic;
         if (harmonicHz >= nyquist - binHz) break;
         const evidence = evidenceAt(harmonicHz);
+        if (harmonic === 1) fundamentalAmplitude = evidence.peak;
+        harmonicEvidence.push(evidence.value);
         const weight = HARMONIC_WEIGHTS[harmonic - 1];
-        harmonicEvidence.push(evidence);
-        weightedScore += evidence * weight;
+        weightedScore += evidence.value * weight;
         totalWeight += weight;
       }
 
       if (!harmonicEvidence.length) continue;
 
       const fundamentalEvidence = harmonicEvidence[0] || 0;
-      const coreStrongCount = harmonicEvidence.slice(1, 4)
+      const coreStrongCount = harmonicEvidence.slice(1,4)
         .filter(value => value > CORE_HARMONIC_THRESHOLD).length;
-      const supportCount = harmonicEvidence.filter(value => value > 0.18).length;
+      const supportCount = harmonicEvidence.filter(value => value > 0.14).length;
       const score = weightedScore / (totalWeight || 1);
       const enoughHarmonics = harmonicEvidence.length >= 4
-        ? coreStrongCount >= 1 && supportCount >= 3
-        : supportCount >= Math.min(2, harmonicEvidence.length);
+        ? coreStrongCount >= 1 && supportCount >= 2
+        : supportCount >= Math.min(2,harmonicEvidence.length);
 
-      if (fundamentalEvidence > 0.18 && enoughHarmonics && score > 0.14) {
-        candidates.push({ midi, frequency: fundamentalHz, score, fundamentalEvidence });
+      if (fundamentalEvidence > 0.12 && enoughHarmonics && score > 0.10) {
+        candidates.push({
+          midi,
+          frequency:fundamentalHz,
+          score,
+          fundamentalEvidence,
+          amplitude:fundamentalAmplitude
+        });
       }
     }
 
@@ -590,8 +601,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     const strongestScore = Math.max(...candidates.map(candidate => candidate.score));
     const viable = candidates
-      .filter(candidate => candidate.score >= Math.max(0.13, strongestScore * 0.20))
-      .sort((a,b) => a.midi - b.midi);
+      .filter(candidate => candidate.score >= Math.max(0.09,strongestScore * 0.15))
+      .sort((a,b) => a.midi-b.midi);
 
     const selected = [];
     for (const candidate of viable) {
@@ -615,22 +626,42 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     return selected;
   }
-
   function updateNoteTracking(detectedNotes) {
-    const detected = new Set(detectedNotes.map(note => note.midi));
+    const detected = new Map(detectedNotes.map(note => [note.midi,note]));
+    const now = performance.now() / 1000;
+
     for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
-      if (detected.has(midi)) {
-        hitCounts[midi] = Math.min(255, hitCounts[midi] + 1);
+      const candidate = detected.get(midi);
+
+      if (candidate) {
+        const previousAmplitude = candidateAmplitudes[midi];
+
+        // A renewed rise in the note's own fundamental energy is treated as
+        // a new strike even if the key never visually went inactive.
+        if (
+          activeMidis.has(midi) &&
+          previousAmplitude > 1e-7 &&
+          candidate.amplitude > previousAmplitude * 1.45 &&
+          now - lastAttackAt[midi] > 0.12
+        ) {
+          lastAttackAt[midi] = now;
+        }
+
+        candidateAmplitudes[midi] = Math.max(candidate.amplitude,previousAmplitude * 0.25);
+        hitCounts[midi] = Math.min(255,hitCounts[midi] + 1);
         missCounts[midi] = 0;
-        if (hitCounts[midi] >= ACTIVATE_HITS) setKeyActive(midi, true);
+        if (hitCounts[midi] >= ACTIVATE_HITS) setKeyActive(midi,true);
       } else {
+        candidateAmplitudes[midi] *= 0.62;
         hitCounts[midi] = 0;
-        missCounts[midi] = Math.min(255, missCounts[midi] + 1);
-        if (missCounts[midi] >= RELEASE_MISSES) setKeyActive(midi, false);
+        missCounts[midi] = Math.min(255,missCounts[midi] + 1);
+        if (missCounts[midi] >= RELEASE_MISSES) {
+          setKeyActive(midi,false);
+          candidateAmplitudes[midi] = 0;
+        }
       }
     }
   }
-
   function updateLiveDisplay(detectedNotes, inputLevel) {
     const activeNotes = Array.from(activeMidis).sort((a,b) => a-b);
     const activeNames = activeNotes.map(midiToNoteName);
@@ -661,7 +692,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   function analyse(timestamp) {
     if (!analyser || !timeData || !spectrumData || !context) return;
     raf = requestAnimationFrame(analyse);
-    if (timestamp - lastAnalysis < 55) return;
+    if (timestamp - lastAnalysis < ANALYSIS_INTERVAL_MS) return;
     lastAnalysis = timestamp;
 
     analyser.getFloatTimeDomainData(timeData);
@@ -669,7 +700,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     analyser.getFloatFrequencyData(spectrumData);
     const maxMagnitude = fillMagnitudes();
 
-    const detectedNotes = inputLevel.rms < 0.00065
+    const detectedNotes = inputLevel.rms < 0.00024
       ? []
       : detectPolyphonicNotes(context.sampleRate, maxMagnitude);
 
@@ -707,8 +738,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
       analyser = context.createAnalyser();
       analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.08;
-      analyser.minDecibels = -120;
+      analyser.smoothingTimeConstant = 0.04;
+      analyser.minDecibels = -110;
       analyser.maxDecibels = 0;
 
       source = context.createMediaStreamSource(stream);
