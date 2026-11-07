@@ -864,7 +864,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   function hasMuseScoreTieForward(node) {
     if (!node) return false;
-    return Array.from(node.getElementsByTagName('Spanner')).some(spanner =>
+    return directChildren(node,'Spanner').some(spanner =>
       spanner.getAttribute('type') === 'Tie' && !!directChild(spanner,'next')
     );
   }
@@ -1248,7 +1248,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           id:'play-' + playbackEventIndex++,
           beat:playbackBeat + event.beat,
           duration:event.duration,
-          pitches:event.pitches
+          pitches:event.pitches,
+          tiePitches:event.tiePitches || []
         });
       }
 
@@ -1451,7 +1452,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           id:'xml-play-' + eventIndex++,
           beat:playbackBeat + event.beat,
           duration:event.duration,
-          pitches:event.pitches
+          pitches:event.pitches,
+          tiePitches:event.tiePitches || []
         });
       }
       for (const tempo of measure.tempos) {
