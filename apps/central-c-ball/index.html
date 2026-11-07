@@ -2119,15 +2119,16 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     challengeMisses = 0;
     updateChallengeStats();
 
-    challengeStartAt = performance.now() / 1000 + 3;
     challengeNotes = createChallengeNotes();
     challengeFallSeconds = Math.max(FALL_SECONDS,...challengeNotes.map(note => note.durationSeconds));
+    const countdownSeconds = Math.ceil(Math.max(3,challengeFallSeconds));
+    challengeStartAt = performance.now() / 1000 + countdownSeconds;
     challengeRunning = true;
     challengeStage.classList.remove('waiting');
     challengeStage.classList.add('running');
     $('startChallenge').disabled = true;
     $('stopChallenge').disabled = false;
-    $('challengeMessage').textContent = '3 秒后开始，准备演奏！';
+    $('challengeMessage').textContent = countdownSeconds + ' 秒后开始，准备演奏！';
     challengeFrameId = requestAnimationFrame(challengeLoop);
   }
 
