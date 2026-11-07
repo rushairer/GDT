@@ -80,6 +80,12 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 .file-label{display:inline-flex;align-items:center;justify-content:center;min-width:130px;padding:10px 16px;border-radius:999px;background:rgba(116,137,176,.15);border:1px solid rgba(142,163,202,.18);color:#d3dcef;font-size:12px;font-weight:700;cursor:pointer}
 .file-label input{display:none}
 .editor-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.playback-toolbar{margin-bottom:8px}
+.playback-display{display:flex;flex-direction:column;gap:7px;padding:10px 12px;margin:4px 0 16px;border:1px solid rgba(142,163,202,.12);border-radius:11px;background:rgba(10,17,30,.38)}
+.playback-track{height:6px;overflow:hidden;border-radius:999px;background:rgba(142,163,202,.16)}
+.playback-fill{width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#68d6ff,#7e9bff);box-shadow:0 0 12px rgba(104,180,255,.5);transition:width 70ms linear}
+.playback-meta{display:flex;justify-content:space-between;gap:10px;color:#8495b1;font-size:11px;font-variant-numeric:tabular-nums}
+.playback-meta span:first-child{color:#b7c8e1}
 .editor-toolbar select{width:auto;min-width:120px}
 .editor-toolbar button{min-width:0;padding:10px 14px;font-size:12px}
 .selected-pitches{min-height:30px;text-align:left;color:#9fb0cc;font-size:12px;margin:8px 0 14px;line-height:1.7}
@@ -209,11 +215,20 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     </div>
 
     <div class="selected-pitches" id="selectedPitches">已选琴键：<strong>尚未选择</strong>。点击下面的琴键进行选择，可同时选择多个音组成和弦。</div>
-    <div class="editor-toolbar">
-      <button class="secondary" id="previewScore" type="button">试听乐曲</button>
-      <button class="ghost" id="stopPreview" type="button" disabled>停止试听</button>
-      <button class="primary" id="saveScore" type="button">保存乐曲到本地</button>
+    <div class="editor-toolbar playback-toolbar">
+      <button class="primary" id="previewScore" type="button">播放音乐</button>
+      <button class="secondary" id="stopPreview" type="button" disabled>停止播放</button>
+      <button class="ghost" id="saveScore" type="button">保存乐曲到本地</button>
       <button class="secondary" id="exportMusicXML" type="button">导出 MusicXML（MuseScore）</button>
+    </div>
+    <div class="playback-display" aria-live="polite">
+      <div class="playback-track" role="progressbar" aria-label="乐曲播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="playback-fill" id="playbackProgress"></div>
+      </div>
+      <div class="playback-meta">
+        <span id="playbackState">就绪</span>
+        <span id="playbackTime">00:00 / 00:00</span>
+      </div>
     </div>
 
     <div class="score-list-header">
@@ -342,6 +357,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   let playbackContext = null;
   let playbackTimer = 0;
+  let playbackFrame = 0;
+  let playbackStartAt = 0;
+  let playbackDuration = 0;
+  let playbackNotes = [];
+  let playbackActiveMidis = new Set();
 
   let challengeRunning = false;
   let challengeFrameId = 0;
@@ -2133,52 +2153,201 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     downloadBlob(safeFilename(score.title) + '.musicxml',xml,'application/vnd.recordare.musicxml+xml;charset=utf-8');
     editorMessage.textContent = 'MusicXML 已导出，并保留速度变化和延长记号；反复已按实际播放顺序展开。';
   }
-  async function stopPreview() {
-    if (playbackTimer) clearTimeout(playbackTimer);
-    playbackTimer = 0;
-    if (playbackContext && playbackContext.state !== 'closed') await playbackContext.close();
-    playbackContext = null;
-    $('previewScore').disabled = false;
-    $('stopPreview').disabled = true;
+  function formatPlaybackTime(seconds) {
+    const safeSeconds = Math.max(0,Number(seconds) || 0);
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainder = Math.floor(safeSeconds % 60);
+    return String(minutes).padStart(2,'0') + ':' + String(remainder).padStart(2,'0');
   }
 
-  async function previewScore() {
-    if (!score.events.length) {
-      editorMessage.textContent = '请先添加或导入音符。';
+  function createPianoWave(audioContext) {
+    const partialCount = 18;
+    const real = new Float32Array(partialCount + 1);
+    const imag = new Float32Array(partialCount + 1);
+
+    for (let harmonic = 1; harmonic <= partialCount; harmonic++) {
+      const decay = 1 / Math.pow(harmonic,1.18);
+      const brightness = harmonic % 2 === 0 ? 0.78 : 1;
+      imag[harmonic] = decay * brightness;
+      real[harmonic] = decay * (harmonic % 3 === 0 ? 0.075 : -0.018);
+    }
+
+    return audioContext.createPeriodicWave(real,imag,{disableNormalization:false});
+  }
+
+  function schedulePianoNote(audioContext, pianoWave, masterGain, midi, startAt, endAt) {
+    const duration = Math.max(0.025,endAt - startAt);
+    const frequency = midiToFrequency(midi);
+    const oscillator = audioContext.createOscillator();
+    const filter = audioContext.createBiquadFilter();
+    const envelope = audioContext.createGain();
+
+    oscillator.setPeriodicWave(pianoWave);
+    oscillator.frequency.setValueAtTime(frequency,startAt);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(Math.min(15000,Math.max(2400,frequency * 12)),startAt);
+    filter.Q.setValueAtTime(0.55,startAt);
+
+    const peak = 0.13;
+    const attack = Math.min(0.012,duration * 0.22);
+    const releaseStart = Math.max(startAt + attack + 0.002,endAt - Math.min(0.025,duration * 0.12));
+    const decayEnd = Math.min(releaseStart,startAt + Math.max(attack + 0.008,Math.min(0.22,duration * 0.32)));
+    const sustain = Math.max(0.0001,peak * 0.24);
+    const releaseEnd = endAt + Math.min(0.16,Math.max(0.045,duration * 0.12));
+
+    envelope.gain.setValueAtTime(0.0001,startAt);
+    envelope.gain.linearRampToValueAtTime(peak,startAt + attack);
+    if (decayEnd > startAt + attack + 0.001) {
+      envelope.gain.exponentialRampToValueAtTime(sustain,decayEnd);
+    }
+    envelope.gain.setValueAtTime(sustain,releaseStart);
+    envelope.gain.exponentialRampToValueAtTime(0.0001,releaseEnd);
+
+    oscillator.connect(filter);
+    filter.connect(envelope);
+    envelope.connect(masterGain);
+    oscillator.start(startAt);
+    oscillator.stop(releaseEnd + 0.025);
+  }
+
+  function updatePlaybackProgress() {
+    if (!playbackContext) return;
+
+    const elapsed = Math.max(0,playbackContext.currentTime - playbackStartAt);
+    const progress = playbackDuration > 0 ? Math.min(1,elapsed / playbackDuration) : 1;
+    const activeNow = new Set();
+
+    for (const note of playbackNotes) {
+      if (elapsed >= note.startSeconds && elapsed < note.endSeconds) {
+        activeNow.add(note.midi);
+      }
+    }
+
+    for (const midi of playbackActiveMidis) {
+      if (!activeNow.has(midi)) {
+        const key = keyElements.get(midi);
+        if (key) key.classList.remove('active');
+      }
+    }
+    for (const midi of activeNow) {
+      if (!playbackActiveMidis.has(midi)) {
+        const key = keyElements.get(midi);
+        if (key) key.classList.add('active');
+      }
+    }
+    playbackActiveMidis = activeNow;
+
+    $('playbackProgress').style.width = (progress * 100).toFixed(2) + '%';
+    $('playbackProgress').parentElement.setAttribute('aria-valuenow',String(Math.round(progress * 100)));
+    $('playbackTime').textContent = formatPlaybackTime(elapsed) + ' / ' + formatPlaybackTime(playbackDuration);
+    $('playbackState').textContent = '正在播放：' + score.title;
+
+    if (elapsed >= playbackDuration) {
+      stopPreview(true);
       return;
     }
 
-    await stopPreview();
+    playbackFrame = requestAnimationFrame(updatePlaybackProgress);
+  }
+
+  async function stopPreview(completed = false) {
+    if (playbackTimer) clearTimeout(playbackTimer);
+    playbackTimer = 0;
+    if (playbackFrame) cancelAnimationFrame(playbackFrame);
+    playbackFrame = 0;
+
+    for (const midi of playbackActiveMidis) {
+      const key = keyElements.get(midi);
+      if (key) key.classList.remove('active');
+    }
+    playbackActiveMidis.clear();
+
+    if (playbackContext && playbackContext.state !== 'closed') {
+      await playbackContext.close();
+    }
+    playbackContext = null;
+    playbackNotes = [];
+    playbackStartAt = 0;
+
+    $('previewScore').disabled = false;
+    $('stopPreview').disabled = true;
+    $('playbackProgress').style.width = completed ? '100%' : '0%';
+    $('playbackProgress').parentElement.setAttribute('aria-valuenow',completed ? '100' : '0');
+    $('playbackTime').textContent = (completed ? formatPlaybackTime(playbackDuration) : '00:00') +
+      ' / ' + formatPlaybackTime(playbackDuration);
+    $('playbackState').textContent = completed ? '播放完成' : '已停止';
+  }
+
+  async function previewScore() {
+    if (!score.events.some(event => event.pitches && event.pitches.length)) {
+      editorMessage.textContent = '请先添加或导入音符，再播放乐曲。';
+      return;
+    }
+
+    await stopPreview(false);
+
+    const timeline = buildPitchTimeline();
+    if (!timeline.length) {
+      editorMessage.textContent = '当前乐曲没有可播放的音符。';
+      return;
+    }
+
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     playbackContext = new AudioContextClass();
     await playbackContext.resume();
 
-    const startAt = playbackContext.currentTime + 0.12;
-    let endAt = startAt;
+    const masterGain = playbackContext.createGain();
+    const compressor = playbackContext.createDynamicsCompressor();
+    masterGain.gain.setValueAtTime(0.78,playbackContext.currentTime);
+    compressor.threshold.setValueAtTime(-15,playbackContext.currentTime);
+    compressor.knee.setValueAtTime(12,playbackContext.currentTime);
+    compressor.ratio.setValueAtTime(4,playbackContext.currentTime);
+    compressor.attack.setValueAtTime(0.004,playbackContext.currentTime);
+    compressor.release.setValueAtTime(0.22,playbackContext.currentTime);
+    masterGain.connect(compressor);
+    compressor.connect(playbackContext.destination);
 
-    for (const note of buildPitchTimeline()) {
-      const eventStart = startAt + scoreBeatToSeconds(note.beat);
-      const eventEnd = startAt + scoreBeatToSeconds(note.beat + note.duration);
-      endAt = Math.max(endAt,eventEnd);
+    const pianoWave = createPianoWave(playbackContext);
+    playbackStartAt = playbackContext.currentTime + 0.12;
+    playbackNotes = timeline.map(note => {
+      const startSeconds = scoreBeatToSeconds(note.beat);
+      const endSeconds = scoreBeatToSeconds(note.beat + note.duration);
+      return {
+        midi:note.midi,
+        startSeconds,
+        endSeconds:Math.max(startSeconds + 0.025,endSeconds)
+      };
+    }).sort((a,b) => a.startSeconds-b.startSeconds || a.midi-b.midi);
 
-      const oscillator = playbackContext.createOscillator();
-      const gain = playbackContext.createGain();
-      oscillator.type = 'triangle';
-      oscillator.frequency.value = midiToFrequency(note.midi);
-      gain.gain.setValueAtTime(0.0001,eventStart);
-      gain.gain.exponentialRampToValueAtTime(0.12,eventStart + 0.025);
-      gain.gain.setValueAtTime(0.12,Math.max(eventStart + 0.03,eventEnd - 0.045));
-      gain.gain.exponentialRampToValueAtTime(0.0001,Math.max(eventStart + 0.05,eventEnd));
-      oscillator.connect(gain);
-      gain.connect(playbackContext.destination);
-      oscillator.start(eventStart);
-      oscillator.stop(eventEnd + 0.02);
+    playbackDuration = playbackNotes.reduce((maximum,note) => Math.max(maximum,note.endSeconds),0);
+    if (playbackDuration <= 0) {
+      await stopPreview(false);
+      editorMessage.textContent = '乐曲时长为零，无法播放。';
+      return;
+    }
+
+    for (const note of playbackNotes) {
+      schedulePianoNote(
+        playbackContext,
+        pianoWave,
+        masterGain,
+        note.midi,
+        playbackStartAt + note.startSeconds,
+        playbackStartAt + note.endSeconds
+      );
     }
 
     $('previewScore').disabled = true;
     $('stopPreview').disabled = false;
-    playbackTimer = setTimeout(() => stopPreview(),Math.max(250,(endAt-startAt)*1000 + 400));
-    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化、反复顺序、延长记号和连音时值）。';
+    $('playbackState').textContent = '准备播放：' + score.title;
+    $('playbackProgress').style.width = '0%';
+    $('playbackProgress').parentElement.setAttribute('aria-valuenow','0');
+    $('playbackTime').textContent = '00:00 / ' + formatPlaybackTime(playbackDuration);
+    editorMessage.textContent = '正在播放乐曲（钢琴音色，已应用速度变化、反复、延长记号和延音线）。';
+
+    playbackFrame = requestAnimationFrame(updatePlaybackProgress);
+    playbackTimer = setTimeout(() => stopPreview(true),playbackDuration * 1000 + 500);
   }
   function switchMode(nextMode) {
     if (nextMode === mode) return;
