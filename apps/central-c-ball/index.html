@@ -1167,7 +1167,15 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   function syncScoreToEditor() {
     scoreTitleInput.value = score.title;
     scoreBpmInput.value = String(score.bpm);
-    scoreMeterInput.value = score.meter.numerator + '/' + score.meter.denominator;
+    const meterValue = score.meter.numerator + '/' + score.meter.denominator;
+    const hasMeter = Array.from(scoreMeterInput.options).some(option => option.value === meterValue);
+    if (!hasMeter) {
+      const option = document.createElement('option');
+      option.value = meterValue;
+      option.textContent = meterValue + '（导入）';
+      scoreMeterInput.appendChild(option);
+    }
+    scoreMeterInput.value = meterValue;
     renderScoreEvents();
   }
 
@@ -1194,10 +1202,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   function updateScoreMetadata() {
     score.title = (scoreTitleInput.value.trim() || '未命名乐曲').slice(0,100);
     score.bpm = Math.max(30,Math.min(300,Number(scoreBpmInput.value) || 120));
-    const meterParts = scoreMeterInput.value.split('/');
+    const meterParts = (scoreMeterInput.value || (score.meter.numerator + '/' + score.meter.denominator)).split('/');
     score.meter = {
-      numerator:Number(meterParts[0]) || 4,
-      denominator:Number(meterParts[1]) || 4
+      numerator:Number(meterParts[0]) || score.meter.numerator || 4,
+      denominator:Number(meterParts[1]) || score.meter.denominator || 4
     };
     $('challengeTitle').textContent = score.title;
     persistScore();
@@ -1347,7 +1355,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const events = score.events.slice().sort((a,b) => a.beat-b.beat);
     const totalBeats = events.reduce((max,event) => Math.max(max,eventEnd(event)),0);
     const measureCount = Math.max(1,Math.ceil(totalBeats / meterBeats));
-    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\\n';
+    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
     xml += '<score-partwise version="4.0"><work><work-title>' + xmlEscape(score.title) + '</work-title></work>';
     xml += '<identification><creator type="composer">GDT Music Lab</creator></identification>';
     xml += '<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">';
