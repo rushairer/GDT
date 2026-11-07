@@ -154,7 +154,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   <section class="editor-panel" id="composePanel" hidden>
     <h2 class="panel-title">乐曲创作工作台</h2>
-    <p class="panel-description">导入 MuseScore 4 的 .mscz/.mscx，或在下方键盘点选音符。多个已选琴键会作为一个和弦写入乐曲。</p>
+    <p class="panel-description">导入 MuseScore 4 的 .mscz/.mscx，自动读取延长记号、速度和反复；也可以在下方键盘点选音符，多个琴键会作为一个和弦写入乐曲。</p>
 
     <div class="import-row">
       <div class="import-copy">
@@ -261,7 +261,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     </div>
   </section>
 
-  <p class="hint">音频只在本机浏览器处理。MuseScore 导入读取音符、和弦、休止符、基础时值、附点、常见三连音和延音线、拍号、速度变化、开始/结束反复、反复次数、常见第一/第二结尾，以及 D.C./D.S. 跳转。复杂装饰记号、歌词和部分高级谱面排版仍不会完整还原。创作内容可保存为本程序乐曲文件，或导出 MusicXML 后在 MuseScore 4 中继续编辑。</p>
+  <p class="hint">音频只在本机浏览器处理。MuseScore 导入读取音符、和弦、休止符、基础时值、附点、常见三连音、延音线和延长记号（Fermata，包括 timeStretch）、拍号、速度变化、开始/结束反复、反复次数、常见第一/第二结尾，以及 D.C./D.S. 跳转。复杂装饰记号、歌词和部分高级谱面排版仍不会完整还原。创作内容可保存为本程序乐曲文件，或导出 MusicXML 后在 MuseScore 4 中继续编辑。</p>
 </main>
 
 <script>
@@ -2148,7 +2148,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     $('previewScore').disabled = true;
     $('stopPreview').disabled = false;
     playbackTimer = setTimeout(() => stopPreview(),Math.max(250,(endAt-startAt)*1000 + 400));
-    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化、反复顺序和连音时值）。';
+    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化、反复顺序、延长记号和连音时值）。';
   }
   function switchMode(nextMode) {
     if (nextMode === mode) return;
