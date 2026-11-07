@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#090d18">
+<meta name="description" content="中央 C 音高感应球：使用麦克风识别 C4（261.63 Hz），小球随音高变化。">
+<title>中央 C · 音高感应球 | GDT</title>
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;color-scheme:dark;background:#090d18;color:#edf2ff}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 42%,rgba(42,78,151,.24),transparent 38%),radial-gradient(ellipse at 15% 15%,rgba(76,48,137,.14),transparent 32%),#090d18}
+.app{width:min(100% - 32px,760px);padding:34px 0 28px;text-align:center}.back{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#91b7ee;font-size:13px;margin-bottom:23px}.back:hover{color:#d0e5ff}.eyebrow{color:#8b9bbb;font-size:11px;font-weight:700;letter-spacing:.22em}h1{margin:12px 0 8px;font-size:clamp(27px,5vw,40px);letter-spacing:-.04em}.subtitle{margin:0;color:#94a3bd;font-size:14px;line-height:1.7}
+.stage{position:relative;display:grid;place-items:center;min-height:320px;margin:18px 0 4px;isolation:isolate}.stage:before,.stage:after{content:"";position:absolute;width:270px;height:270px;border:1px solid rgba(137,166,224,.10);border-radius:50%;z-index:-1}.stage:after{width:350px;height:350px;border-color:rgba(137,166,224,.055)}.ball-wrap{width:230px;height:230px;display:grid;place-items:center}.ball{position:relative;width:112px;height:112px;border-radius:50%;transform:scale(1);transition:transform 420ms cubic-bezier(.2,.85,.25,1.25),box-shadow 420ms ease,filter 420ms ease;background:radial-gradient(circle at 32% 25%,#d8f7ff 0%,#85d8ff 12%,#4b9dff 38%,#4d67df 68%,#302d86 100%);box-shadow:0 0 28px rgba(77,157,255,.35),inset -12px -16px 24px rgba(14,20,83,.42),inset 7px 8px 18px rgba(255,255,255,.35)}.ball:before{content:"";position:absolute;width:38px;height:17px;top:17px;left:21px;border-radius:50%;transform:rotate(-33deg);background:rgba(255,255,255,.46);filter:blur(5px)}.ball.active{transform:scale(1.85);filter:saturate(1.22) brightness(1.12);box-shadow:0 0 42px rgba(89,177,255,.58),0 0 100px rgba(76,111,255,.30),inset -12px -16px 24px rgba(14,20,83,.34),inset 7px 8px 18px rgba(255,255,255,.45)}
+.state{min-height:28px;display:flex;align-items:center;justify-content:center;gap:9px;color:#a7b5cc;font-size:13px}.dot{width:7px;height:7px;border-radius:50%;background:#65728a;box-shadow:0 0 0 4px rgba(101,114,138,.12)}.dot.live{background:#50d6a0;box-shadow:0 0 0 4px rgba(80,214,160,.12),0 0 14px rgba(80,214,160,.55)}.result{margin-top:13px;font-size:clamp(31px,7vw,48px);font-weight:750;letter-spacing:-.045em;line-height:1.1}.result small{display:block;margin-top:9px;color:#91a0bb;font-size:13px;font-weight:500;letter-spacing:.02em}
+.metrics{display:flex;justify-content:center;gap:12px;margin:24px auto 22px;max-width:430px}.metric{flex:1;padding:14px 10px;border:1px solid rgba(142,163,202,.13);border-radius:14px;background:rgba(19,27,45,.66)}.metric span{display:block;color:#8392ad;font-size:11px;margin-bottom:7px}.metric strong{font-size:17px;font-variant-numeric:tabular-nums}.controls{display:flex;justify-content:center;gap:10px}button{min-width:142px;border:0;border-radius:999px;padding:13px 22px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:transform 160ms ease,opacity 160ms ease}button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowed}.primary{color:#07111f;background:linear-gradient(110deg,#a4e8ff,#83aaff);box-shadow:0 8px 28px rgba(87,158,255,.2)}.secondary{color:#d3dcef;background:rgba(116,137,176,.13);border:1px solid rgba(142,163,202,.16)}.hint{max-width:540px;margin:22px auto 0;color:#72819c;font-size:12px;line-height:1.8}.error{min-height:20px;margin-top:12px;color:#ff9a9a;font-size:12px}
+@media(max-width:480px){.app{padding-top:28px}.stage{min-height:290px}.metrics{gap:7px}.metric{padding:12px 5px}.metric strong{font-size:15px}button{min-width:128px}}
+</style>
+</head>
+<body>
+<main class="app">
+  <a class="back" href="../../">← 返回 GDT 互动实验室</a>
+  <div class="eyebrow">REAL-TIME PITCH DETECTOR</div>
+  <h1>中央 C · 音高感应球</h1>
+  <p class="subtitle">对着麦克风弹奏中央 C，看小球随音高放大</p>
+  <section class="stage" aria-label="音高检测可视化"><div class="ball-wrap"><div class="ball" id="ball"></div></div></section>
+  <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
+  <div class="result" id="result">等待音高<small>目标音高：C4 / 261.63 Hz</small></div>
+  <div class="metrics">
+    <div class="metric"><span>当前音高</span><strong id="frequency">-- Hz</strong></div>
+    <div class="metric"><span>识别音符</span><strong id="note">--</strong></div>
+    <div class="metric"><span>相对误差</span><strong id="cents">--</strong></div>
+  </div>
+  <div class="controls"><button class="primary" id="start">开始监听</button><button class="secondary" id="stop" disabled>停止</button></div>
+  <div class="error" id="error" role="status" aria-live="polite"></div>
+  <p class="hint">请允许浏览器访问麦克风。识别到 C4（中央 C）时，小球平滑放大；离开目标音高后恢复原样。建议使用钢琴或电子琴，并尽量在安静环境中测试。录音不会上传服务器。</p>
+</main>
+<script>
+(() => {
+  "use strict";
+  const TARGET = 261.625565, names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const $ = id => document.getElementById(id);
+  const ball = $('ball'), dot = $('dot'), status = $('status'), result = $('result');
+  const frequencyEl = $('frequency'), noteEl = $('note'), centsEl = $('cents'), errorEl = $('error');
+  const startButton = $('start'), stopButton = $('stop');
+  let context = null, stream = null, analyser = null, samples = null, raf = 0, source = null;
+  let lastAnalysis = 0, hits = 0, misses = 0, active = false, starting = false;
+  const liveHint = '<small>目标音高：C4 / 261.63 Hz</small>';
+  function setActive(value) {
+    if (active === value) return;
+    active = value;
+    ball.classList.toggle('active', value);
+    result.innerHTML = value ? 'C4 <small>检测到中央 C，小球正在放大</small>' : '监听中 ' + liveHint;
+    status.textContent = value ? '正在检测到中央 C' : '正在监听，请演奏中央 C';
+  }
+  function detectPitch(input, sampleRate) {
+    const n = input.length;
+    let mean = 0;
+    for (let i = 0; i < n; i++) mean += input[i];
+    mean /= n;
+    const data = new Float32Array(n);
+    let energy = 0;
+    for (let i = 0; i < n; i++) {
+      const v = input[i] - mean; data[i] = v; energy += v*v;
+    }
+    if (Math.sqrt(energy/n) < 0.008) return null;
+    const minTau = Math.max(2,Math.floor(sampleRate/650));
+    const maxTau = Math.min(Math.floor(sampleRate/75),Math.floor(n/2));
+    const compareLength = n - maxTau, diff = new Float32Array(maxTau+1);
+    for (let tau=1;tau<=maxTau;tau++) {
+      let sum=0;
+      for(let i=0;i<compareLength;i++){const d=data[i]-data[i+tau];sum+=d*d;}
+      diff[tau]=sum;
+    }
+    const cmnd=new Float32Array(maxTau+1);cmnd[0]=1;
+    let running=0;
+    for(let tau=1;tau<=maxTau;tau++){
+      running+=diff[tau];cmnd[tau]=running===0?1:diff[tau]*tau/running;
+    }
+    let chosen=-1;
+    for(let tau=minTau;tau<maxTau;tau++){
+      if(cmnd[tau]<0.14){
+        while(tau+1<=maxTau&&cmnd[tau+1]<cmnd[tau])tau++;
+        chosen=tau;break;
+      }
+    }
+    if(chosen<0){
+      let best=1;
+      for(let tau=minTau;tau<=maxTau;tau++)if(cmnd[tau]<best){best=cmnd[tau];chosen=tau;}
+      if(chosen<0||best>0.28)return null;
+    }
+    let refined=chosen;
+    if(chosen>0&&chosen<maxTau){
+      const a=cmnd[chosen-1], b=cmnd[chosen], c=cmnd[chosen+1], denom=2*(a-2*b+c);
+      if(Math.abs(denom)>1e-9)refined+=(a-c)/denom;
+    }
+    const hz=sampleRate/refined;
+    if(!Number.isFinite(hz)||hz<75||hz>650)return null;
+    return {hz,confidence:1-cmnd[chosen]};
+  }
+  function noteName(hz) {
+    const midi=Math.round(69+12*Math.log2(hz/440));
+    return names[(midi%12+12)%12]+(Math.floor(midi/12)-1);
+  }
+  function analyse(timestamp) {
+    if(!analyser||!samples||!context)return;
+    raf=requestAnimationFrame(analyse);
+    if(timestamp-lastAnalysis<45)return;
+    lastAnalysis=timestamp;
+    analyser.getFloatTimeDomainData(samples);
+    const pitch=detectPitch(samples,context.sampleRate);
+    if(pitch){
+      const cents=1200*Math.log2(pitch.hz/TARGET);
+      frequencyEl.textContent=pitch.hz.toFixed(1)+' Hz';
+      noteEl.textContent=noteName(pitch.hz);
+      centsEl.textContent=(cents>0?'+':'')+Math.round(cents)+' ct';
+      if(pitch.confidence>=0.70&&Math.abs(cents)<=45){
+        hits++;misses=0;
+        if(hits>=2)setActive(true);
+      }else{
+        hits=0;misses++;
+        if(misses>=4)setActive(false);
+        if(!active)status.textContent='已听到 '+noteName(pitch.hz)+'，继续寻找 C4';
+      }
+    }else{
+      frequencyEl.textContent='-- Hz';noteEl.textContent='--';centsEl.textContent='--';
+      hits=0;misses++;
+      if(misses>=4)setActive(false);
+    }
+  }
+  async function stop() {
+    if(raf)cancelAnimationFrame(raf);
+    raf=0;
+    if(stream)stream.getTracks().forEach(track=>track.stop());
+    stream=null;
+    if(context&&context.state!=='closed')await context.close();
+    context=null;analyser=null;samples=null;source=null;hits=0;misses=0;
+    active=false;ball.classList.remove('active');dot.classList.remove('live');
+    status.textContent='尚未启动麦克风监听';
+    frequencyEl.textContent='-- Hz';noteEl.textContent='--';centsEl.textContent='--';
+    result.innerHTML='等待音高'+liveHint;
+    startButton.disabled=false;stopButton.disabled=true;
+  }
+  async function start(){
+    if(starting||context)return;
+    errorEl.textContent='';
+    if(!navigator.mediaDevices?.getUserMedia){
+      errorEl.textContent='浏览器不支持麦克风访问，请使用 HTTPS 地址或 localhost。';return;
+    }
+    starting=true;startButton.disabled=true;
+    status.textContent='正在请求麦克风权限…';
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+      const Context=window.AudioContext||window.webkitAudioContext;
+      context=new Context();
+      await context.resume();
+      analyser=context.createAnalyser();
+      analyser.fftSize=4096;analyser.smoothingTimeConstant=0;
+      source=context.createMediaStreamSource(stream);source.connect(analyser);
+      samples=new Float32Array(analyser.fftSize);
+      hits=0;misses=0;active=false;ball.classList.remove('active');
+      result.innerHTML='监听中 '+liveHint;
+      status.textContent='正在监听，请演奏中央 C';
+      dot.classList.add('live');stopButton.disabled=false;lastAnalysis=0;
+      raf=requestAnimationFrame(analyse);
+    }catch(e){
+      const denied=e?.name==='NotAllowedError'||e?.name==='PermissionDeniedError';
+      await stop();
+      status.textContent='麦克风未启动';
+      errorEl.textContent=denied?'麦克风权限被拒绝，请在浏览器网站权限中允许麦克风。':'无法启动麦克风：'+(e?.message||'未知错误');
+    }finally{starting=false;}
+  }
+  startButton.addEventListener('click',start);
+  stopButton.addEventListener('click',()=>{if(!starting)stop();});
+  window.addEventListener('pagehide',()=>{if(stream)stream.getTracks().forEach(track=>track.stop());});
+})();
+</script>
+</body>
+</html>
