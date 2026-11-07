@@ -4,70 +4,252 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#090d18">
-<meta name="description" content="88 键钢琴音高识别：实时识别麦克风中的音高，并点亮对应琴键。">
-<title>88 键钢琴 · 音高识别</title>
+<meta name="description" content="88 键钢琴：MuseScore 乐谱导入、在线编曲和实时演奏挑战。">
+<title>88 键钢琴 · 乐谱与演奏挑战</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;background:#090d18;color:#edf2ff}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{min-height:100vh;margin:0;background:radial-gradient(ellipse at 50% 8%,rgba(55,88,165,.22),transparent 38%),#090d18}
-.app{width:100%;max-width:1500px;margin:0 auto;padding:clamp(18px,3vh,34px) 12px 28px;text-align:center}
+.app{width:100%;max-width:1500px;margin:0 auto;padding:clamp(18px,3vh,34px) 12px 32px;text-align:center}
 .eyebrow{color:#8b9bbb;font-size:11px;font-weight:700;letter-spacing:.22em}
 h1{margin:12px 0 8px;font-size:clamp(27px,4vw,42px);letter-spacing:-.04em}
-.subtitle{margin:0 auto;color:#94a3bd;font-size:14px;line-height:1.8;max-width:700px}
-.keyboard-shell{margin:clamp(22px,4vh,38px) auto 14px;padding:14px 10px 12px;border:1px solid rgba(142,163,202,.13);border-radius:18px;background:rgba(18,25,42,.82);box-shadow:0 18px 60px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.03)}
-.keyboard-caption{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#8797b2;font-size:12px;margin:0 2px 12px}
-.keyboard-caption strong{color:#d7e4fa;font-weight:650}
-.piano{position:relative;width:100%;height:clamp(112px,25vh,230px);overflow:hidden;user-select:none}
-.white-keys{position:absolute;inset:0;display:grid;grid-template-columns:repeat(52,minmax(0,1fr));height:100%}
-.white-key{position:relative;min-width:0;height:100%;border:0;border-right:1px solid rgba(20,29,45,.38);border-radius:0 0 3px 3px;background:linear-gradient(90deg,#dce3ee 0%,#fff 16%,#f4f6fa 82%,#cbd4e2 100%);box-shadow:inset 0 -5px 7px rgba(40,54,78,.16);transition:background 120ms ease,box-shadow 150ms ease}
-.white-key:first-child{border-left:1px solid rgba(20,29,45,.38)}
-.white-key.active{z-index:1;background:linear-gradient(180deg,#e9fbff 0%,#9bdfff 52%,#5daaff 100%);box-shadow:inset 0 -5px 8px rgba(20,74,151,.22),0 0 12px rgba(83,176,255,.8),0 0 28px rgba(83,140,255,.62)}
-.black-key{position:absolute;z-index:3;top:0;width:1.1924%;height:63%;transform:translateX(-50%);border:1px solid #080c14;border-top:0;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#050810 0%,#202a3b 28%,#111827 76%,#03060c 100%);box-shadow:0 4px 7px rgba(0,0,0,.48),inset 0 -3px 4px rgba(255,255,255,.06);transition:background 120ms ease,box-shadow 150ms ease}
-.black-key.active{background:linear-gradient(180deg,#bceeff 0%,#4ca8ff 50%,#315ce0 100%);box-shadow:0 0 9px rgba(104,198,255,.95),0 0 20px rgba(91,117,255,.7),0 4px 7px rgba(0,0,0,.4)}
-.octave-label{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:clamp(6px,.72vw,10px);font-weight:650;line-height:1;color:#8a97aa;pointer-events:none;white-space:nowrap}
-.white-key.active .octave-label{color:#08284a}
-.keyboard-legend{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#71819c;font-size:11px}
-.state{min-height:28px;display:flex;align-items:center;justify-content:center;gap:9px;color:#a7b5cc;font-size:13px;margin-top:8px}
-.dot{width:7px;height:7px;border-radius:50%;background:#65728a;box-shadow:0 0 0 4px rgba(101,114,138,.12)}
-.dot.live{background:#50d6a0;box-shadow:0 0 0 4px rgba(80,214,160,.12),0 0 14px rgba(80,214,160,.55)}
-.result{margin-top:12px;font-size:clamp(21px,4vw,34px);font-weight:750;letter-spacing:-.035em;line-height:1.25;overflow-wrap:anywhere}.metric.notes strong{font-size:13px;line-height:1.5;overflow-wrap:anywhere}
-.result small{display:block;margin-top:9px;color:#91a0bb;font-size:13px;font-weight:500;letter-spacing:.02em}
-.metrics{display:flex;justify-content:center;gap:12px;margin:22px auto 20px;max-width:560px;flex-wrap:wrap}
-.metric{flex:1 1 150px;padding:13px 10px;border:1px solid rgba(142,163,202,.13);border-radius:14px;background:rgba(19,27,45,.66)}
-.metric span{display:block;color:#8392ad;font-size:11px;margin-bottom:7px}
-.metric strong{font-size:17px;font-variant-numeric:tabular-nums}
-.controls{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
-button{min-width:142px;border:0;border-radius:999px;padding:13px 22px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:transform 160ms ease,opacity 160ms ease}
+.subtitle{margin:0 auto;color:#94a3bd;font-size:14px;line-height:1.8;max-width:760px}
+.mode-tabs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:24px auto 18px}
+.mode-tab{min-width:0;padding:10px 18px;color:#aab8d0;background:rgba(116,137,176,.10);border:1px solid rgba(142,163,202,.15);border-radius:999px;font-size:13px}
+.mode-tab.active{color:#07111f;background:linear-gradient(110deg,#a4e8ff,#83aaff);border-color:transparent;box-shadow:0 8px 28px rgba(87,158,255,.16)}
+button{min-width:142px;border:0;border-radius:999px;padding:12px 20px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:transform 160ms ease,opacity 160ms ease,background 160ms ease}
 button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowed}
 .primary{color:#07111f;background:linear-gradient(110deg,#a4e8ff,#83aaff);box-shadow:0 8px 28px rgba(87,158,255,.2)}
 .secondary{color:#d3dcef;background:rgba(116,137,176,.13);border:1px solid rgba(142,163,202,.16)}
-.hint{max-width:760px;margin:20px auto 0;color:#72819c;font-size:12px;line-height:1.8}
-.error{min-height:20px;margin-top:10px;color:#ff9a9a;font-size:12px}
-@media(max-width:600px){
-  .app{padding:18px 4px 24px}
+.ghost{color:#b7c7e1;background:rgba(116,137,176,.08);border:1px solid rgba(142,163,202,.13)}
+.danger{color:#ffc0c0;background:rgba(174,70,85,.12);border:1px solid rgba(230,110,125,.2)}
+.live-panel,.editor-panel,.challenge-panel{margin:0 auto 18px;max-width:1120px;padding:18px;border:1px solid rgba(142,163,202,.13);border-radius:18px;background:rgba(18,25,42,.76);text-align:left}
+.panel-title{font-size:17px;font-weight:750;margin:0 0 6px}
+.panel-description{margin:0 0 16px;color:#8292ad;font-size:12px;line-height:1.7}
+.state{min-height:28px;display:flex;align-items:center;justify-content:center;gap:9px;color:#a7b5cc;font-size:13px;margin-top:2px}
+.dot{width:7px;height:7px;border-radius:50%;background:#65728a;box-shadow:0 0 0 4px rgba(101,114,138,.12)}
+.dot.live{background:#50d6a0;box-shadow:0 0 0 4px rgba(80,214,160,.12),0 0 14px rgba(80,214,160,.55)}
+.result{margin-top:12px;text-align:center;font-size:clamp(21px,4vw,34px);font-weight:750;letter-spacing:-.035em;line-height:1.25;overflow-wrap:anywhere}
+.result small{display:block;margin-top:8px;color:#91a0bb;font-size:13px;font-weight:500;letter-spacing:.02em}
+.metrics{display:flex;justify-content:center;gap:10px;margin:18px auto 16px;max-width:620px;flex-wrap:wrap}
+.metric{flex:1 1 140px;padding:12px 10px;border:1px solid rgba(142,163,202,.13);border-radius:13px;background:rgba(19,27,45,.66);text-align:center;min-width:0}
+.metric span{display:block;color:#8392ad;font-size:11px;margin-bottom:6px}
+.metric strong{font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.metric.notes strong{font-size:13px;line-height:1.5}
+.controls{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}
+.error{min-height:18px;margin-top:9px;color:#ff9a9a;font-size:12px;text-align:center}
+.keyboard-shell{margin:18px auto 16px;padding:14px 10px 12px;border:1px solid rgba(142,163,202,.13);border-radius:18px;background:rgba(18,25,42,.82);box-shadow:0 18px 60px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.03)}
+.keyboard-caption{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#8797b2;font-size:12px;margin:0 2px 12px}
+.keyboard-caption strong{color:#d7e4fa;font-weight:650}
+.piano{position:relative;width:100%;height:clamp(112px,25vh,220px);overflow:hidden;user-select:none}
+.white-keys{position:absolute;inset:0;display:grid;grid-template-columns:repeat(52,minmax(0,1fr));height:100%}
+.white-key{position:relative;min-width:0;height:100%;border:0;border-right:1px solid rgba(20,29,45,.38);border-radius:0 0 3px 3px;background:linear-gradient(90deg,#dce3ee 0%,#fff 16%,#f4f6fa 82%,#cbd4e2 100%);box-shadow:inset 0 -5px 7px rgba(40,54,78,.16);transition:background 120ms ease,box-shadow 150ms ease;cursor:default}
+.white-key:first-child{border-left:1px solid rgba(20,29,45,.38)}
+.white-key.active{z-index:1;background:linear-gradient(180deg,#e9fbff 0%,#9bdfff 52%,#5daaff 100%);box-shadow:inset 0 -5px 8px rgba(20,74,151,.22),0 0 12px rgba(83,176,255,.8),0 0 28px rgba(83,140,255,.62)}
+.white-key.selected{outline:2px solid #4b9cff;outline-offset:-3px;background:linear-gradient(180deg,#e5f4ff,#9acaff)}
+.black-key{position:absolute;z-index:3;top:0;width:1.1924%;height:63%;transform:translateX(-50%);border:1px solid #080c14;border-top:0;border-radius:0 0 3px 3px;background:linear-gradient(90deg,#050810 0%,#202a3b 28%,#111827 76%,#03060c 100%);box-shadow:0 4px 7px rgba(0,0,0,.48),inset 0 -3px 4px rgba(255,255,255,.06);transition:background 120ms ease,box-shadow 150ms ease;cursor:default}
+.black-key.active{background:linear-gradient(180deg,#bceeff 0%,#4ca8ff 50%,#315ce0 100%);box-shadow:0 0 9px rgba(104,198,255,.95),0 0 20px rgba(91,117,255,.7),0 4px 7px rgba(0,0,0,.4)}
+.black-key.selected{background:linear-gradient(180deg,#d4e9ff 0%,#559bff 50%,#2649bb 100%);outline:1px solid #8dcaff}
+.octave-label{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);font-size:clamp(6px,.72vw,10px);font-weight:650;line-height:1;color:#8a97aa;pointer-events:none;white-space:nowrap}
+.white-key.active .octave-label,.white-key.selected .octave-label{color:#08284a}
+.keyboard-legend{display:flex;justify-content:space-between;gap:10px;margin-top:10px;color:#71819c;font-size:11px}
+.keyboard-shell.challenge-mode .piano{height:clamp(76px,13vh,116px)}
+.challenge-stage{position:relative;height:clamp(170px,30vh,280px);overflow:hidden;border:1px solid rgba(123,158,216,.13);border-radius:10px 10px 0 0;background:linear-gradient(180deg,rgba(12,20,37,.96),rgba(21,35,60,.68));margin-bottom:0}
+.challenge-stage:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100% / 52 - 1px),rgba(135,163,211,.055) calc(100% / 52 - 1px),rgba(135,163,211,.055) calc(100% / 52));pointer-events:none}
+.falling-notes{position:absolute;inset:0;overflow:hidden}
+.falling-note{position:absolute;top:0;min-width:4px;border-radius:5px 5px 3px 3px;background:linear-gradient(180deg,#9eeaff,#4a9dff 72%,#5265ef);box-shadow:0 0 10px rgba(81,164,255,.52),inset 0 1px 2px rgba(255,255,255,.5);display:flex;align-items:flex-start;justify-content:center;padding-top:4px;color:#06182e;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;pointer-events:none}
+.falling-note.black-note{background:linear-gradient(180deg,#e0c8ff,#9a76ff 72%,#6548d7);box-shadow:0 0 10px rgba(163,122,255,.55),inset 0 1px 2px rgba(255,255,255,.5)}
+.falling-note.hit{opacity:0;transform:scaleY(.15);transition:opacity 120ms ease,transform 120ms ease}
+.falling-note.missed{background:linear-gradient(180deg,#ffb0b0,#dc526b);box-shadow:0 0 10px rgba(255,80,110,.45);opacity:.4}
+.hit-line{position:absolute;bottom:0;left:0;right:0;height:3px;background:#a9e9ff;box-shadow:0 0 12px #64caff,0 0 28px rgba(77,167,255,.75);z-index:4}
+.challenge-stage.waiting:after{content:"准备好，跟随下落琴键演奏";position:absolute;inset:0;display:grid;place-items:center;color:#8fa4c6;font-size:14px;letter-spacing:.05em;pointer-events:none}
+.challenge-stage.running:after{display:none}
+.challenge-panel .metrics{margin:12px 0}
+.challenge-actions{display:flex;align-items:center;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:12px}
+.editor-panel{padding:18px}
+.editor-top{display:grid;grid-template-columns:minmax(180px,2fr) minmax(100px,1fr) minmax(110px,1fr);gap:10px;margin-bottom:14px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{color:#8797b2;font-size:11px;text-align:left}
+.field input,.field select,.editor-toolbar select{width:100%;min-width:0;padding:10px 12px;border:1px solid rgba(142,163,202,.2);border-radius:10px;background:#101a2c;color:#eaf2ff;font:inherit;font-size:13px;outline:none}
+.field input:focus,.field select:focus,.editor-toolbar select:focus{border-color:#6eaeff}
+.import-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px;border:1px dashed rgba(142,163,202,.24);border-radius:12px;background:rgba(10,17,30,.35);margin-bottom:14px}
+.import-copy{text-align:left;min-width:180px;flex:1}
+.import-copy strong{display:block;font-size:13px;margin-bottom:4px}
+.import-copy span{color:#7f90ab;font-size:11px;line-height:1.6}
+.file-label{display:inline-flex;align-items:center;justify-content:center;min-width:130px;padding:10px 16px;border-radius:999px;background:rgba(116,137,176,.15);border:1px solid rgba(142,163,202,.18);color:#d3dcef;font-size:12px;font-weight:700;cursor:pointer}
+.file-label input{display:none}
+.editor-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.editor-toolbar select{width:auto;min-width:120px}
+.editor-toolbar button{min-width:0;padding:10px 14px;font-size:12px}
+.selected-pitches{min-height:30px;text-align:left;color:#9fb0cc;font-size:12px;margin:8px 0 14px;line-height:1.7}
+.selected-pitches strong{color:#dce9ff}
+.score-list-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 9px;text-align:left}
+.score-list-header strong{font-size:13px}
+.score-list-header span{color:#7586a2;font-size:11px}
+.score-events{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto;padding-right:3px}
+.score-event{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 11px;border:1px solid rgba(142,163,202,.1);border-radius:10px;background:rgba(10,17,30,.42);text-align:left}
+.event-index{color:#7d90af;font-size:11px;font-variant-numeric:tabular-nums}
+.event-notes{font-size:12px;color:#dbe7fa;overflow-wrap:anywhere}
+.event-meta{display:block;color:#7789a6;font-size:10px;margin-top:3px}
+.event-delete{min-width:0;padding:6px 10px;border-radius:8px;background:rgba(174,70,85,.12);border:1px solid rgba(230,110,125,.16);color:#ffb7c1;font-size:11px}
+.empty-score{padding:20px;color:#71819c;font-size:12px;border:1px dashed rgba(142,163,202,.14);border-radius:10px}
+.hint{max-width:800px;margin:18px auto 0;color:#72819c;font-size:12px;line-height:1.8}
+.toast{min-height:18px;margin-top:10px;color:#8fd7b8;font-size:12px;text-align:center}
+@media(max-width:700px){
+  .app{padding:16px 5px 24px}
+  .mode-tabs{gap:5px;margin:18px auto 12px}
+  .mode-tab{padding:9px 12px;font-size:11px}
+  .live-panel,.editor-panel,.challenge-panel{padding:13px;border-radius:13px}
   .keyboard-shell{padding:10px 4px 9px;border-radius:12px}
   .keyboard-caption{font-size:10px;margin-bottom:9px}
-  .piano{height:clamp(104px,22vh,170px)}
+  .piano{height:clamp(100px,20vh,160px)}
+  .keyboard-shell.challenge-mode .piano{height:clamp(66px,11vh,88px)}
   .black-key{height:62%}
   .keyboard-legend{font-size:9px;margin:8px 2px 0}
-  .metrics{gap:6px;margin:18px auto}
-  .metric{padding:11px 5px;flex-basis:100px}
+  .editor-top{grid-template-columns:1fr 1fr;gap:8px}
+  .editor-top .field:first-child{grid-column:1/-1}
+  .editor-toolbar{gap:6px}
+  .editor-toolbar button{flex:1 1 42%;padding:10px 8px}
+  .editor-toolbar select{flex:1 1 40%}
+  .score-event{grid-template-columns:42px minmax(0,1fr) auto;gap:7px;padding:8px}
+  .metrics{gap:6px;margin:14px auto}
+  .metric{padding:10px 5px;flex-basis:95px}
   .metric span{font-size:10px}
   .metric strong{font-size:14px}
-  button{min-width:126px}
+  .metric.notes strong{font-size:11px}
+  button{min-width:120px}
+  .challenge-stage{height:clamp(160px,26vh,220px)}
 }
 </style>
 </head>
 <body>
 <main class="app">
-  <div class="eyebrow">REAL-TIME PITCH DETECTOR · FULL 88-KEY PIANO</div>
-  <h1>88 键钢琴 · 音高识别</h1>
-  <p class="subtitle">完整显示钢琴 A0 到 C8 的 88 个琴键。支持同时分析多个音符，弹奏单音或和弦时，对应琴键都会发亮。</p>
+  <div class="eyebrow">GDT MUSIC LAB · 88-KEY PIANO</div>
+  <h1>钢琴识谱与演奏挑战</h1>
+  <p class="subtitle">导入 MuseScore 乐谱、自己编曲，或者跟随下落音符进行实时演奏挑战。</p>
 
-  <section class="keyboard-shell" aria-label="完整钢琴 88 键键盘">
+  <nav class="mode-tabs" aria-label="功能模式">
+    <button class="mode-tab active" data-mode="live" type="button">实时识别</button>
+    <button class="mode-tab" data-mode="compose" type="button">乐曲创作</button>
+    <button class="mode-tab" data-mode="challenge" type="button">演奏挑战</button>
+  </nav>
+
+  <section class="live-panel" id="livePanel">
+    <h2 class="panel-title">实时音高识别</h2>
+    <p class="panel-description">通过麦克风分析声音频谱，识别单音或和弦，并点亮对应琴键。</p>
+    <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
+    <div class="result" id="result">等待音高<small>目标范围：钢琴 A0 – C8</small></div>
+    <div class="metrics">
+      <div class="metric"><span>主音频率</span><strong id="frequency">-- Hz</strong></div>
+      <div class="metric notes"><span>识别音符</span><strong id="note">--</strong></div>
+      <div class="metric"><span>同时识别</span><strong id="noteCount">0 个</strong></div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="start">开始监听</button>
+      <button class="secondary" id="stop" disabled>停止</button>
+    </div>
+    <div class="error" id="error" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="editor-panel" id="composePanel" hidden>
+    <h2 class="panel-title">乐曲创作工作台</h2>
+    <p class="panel-description">导入 MuseScore 4 的 .mscz/.mscx，或在下方键盘点选音符。多个已选琴键会作为一个和弦写入乐曲。</p>
+
+    <div class="import-row">
+      <div class="import-copy">
+        <strong>导入现有乐谱</strong>
+        <span>支持 MuseScore 4（.mscz / .mscx）、MusicXML（.musicxml / .xml）和本程序乐曲文件（.gdtmusic.json）。文件在本机解析，不会上传。</span>
+      </div>
+      <label class="file-label">选择乐谱文件
+        <input id="scoreFile" type="file" accept=".mscz,.mscx,.musicxml,.xml,.json">
+      </label>
+    </div>
+
+    <div class="editor-top">
+      <div class="field">
+        <label for="scoreTitle">乐曲名称</label>
+        <input id="scoreTitle" type="text" maxlength="100" value="我的新乐曲" placeholder="输入乐曲名称">
+      </div>
+      <div class="field">
+        <label for="scoreBpm">速度（BPM）</label>
+        <input id="scoreBpm" type="number" min="30" max="300" step="1" value="120">
+      </div>
+      <div class="field">
+        <label for="scoreMeter">拍号</label>
+        <select id="scoreMeter">
+          <option value="4/4">4/4</option>
+          <option value="3/4">3/4</option>
+          <option value="2/4">2/4</option>
+          <option value="6/8">6/8</option>
+          <option value="5/4">5/4</option>
+          <option value="7/8">7/8</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="noteDuration">新音符时值</label>
+      <div class="editor-toolbar">
+        <select id="noteDuration">
+          <option value="4">全音符</option>
+          <option value="3">附点二分音符</option>
+          <option value="2">二分音符</option>
+          <option value="1.5">附点四分音符</option>
+          <option value="1">四分音符</option>
+          <option value="0.75">附点八分音符</option>
+          <option value="0.5">八分音符</option>
+          <option value="0.25">十六分音符</option>
+          <option value="0.125">三十二分音符</option>
+        </select>
+        <button class="primary" id="addNotes" type="button">添加选中音符 / 和弦</button>
+        <button class="secondary" id="addRest" type="button">添加休止符</button>
+        <button class="ghost" id="undoEvent" type="button">撤销上一项</button>
+      </div>
+    </div>
+
+    <div class="selected-pitches" id="selectedPitches">已选琴键：<strong>尚未选择</strong>。点击下面的琴键进行选择，可同时选择多个音组成和弦。</div>
+    <div class="editor-toolbar">
+      <button class="secondary" id="previewScore" type="button">试听乐曲</button>
+      <button class="ghost" id="stopPreview" type="button" disabled>停止试听</button>
+      <button class="primary" id="saveScore" type="button">保存乐曲到本地</button>
+      <button class="secondary" id="exportMusicXML" type="button">导出 MusicXML（MuseScore）</button>
+    </div>
+
+    <div class="score-list-header">
+      <strong>乐曲音符序列</strong>
+      <span id="scoreSummary">0 个音符事件</span>
+    </div>
+    <div class="score-events" id="scoreEvents">
+      <div class="empty-score">还没有音符。点选琴键后，点击“添加选中音符 / 和弦”开始创作。</div>
+    </div>
+    <div class="toast" id="editorMessage" aria-live="polite"></div>
+  </section>
+
+  <section class="challenge-panel" id="challengePanel" hidden>
+    <h2 class="panel-title">演奏挑战</h2>
+    <p class="panel-description">乐曲中的每个音符会变成下落条形。条形到达琴键时，请通过麦克风演奏对应音高；匹配成功，条形就会消失。和弦会同时出现多个条形。</p>
+    <div class="metrics">
+      <div class="metric"><span>当前乐曲</span><strong id="challengeTitle">我的新乐曲</strong></div>
+      <div class="metric"><span>命中</span><strong id="challengeHits">0</strong></div>
+      <div class="metric"><span>未命中</span><strong id="challengeMisses">0</strong></div>
+      <div class="metric"><span>准确率</span><strong id="challengeAccuracy">--</strong></div>
+    </div>
+    <div class="challenge-actions">
+      <button class="primary" id="startChallenge" type="button">开始挑战</button>
+      <button class="secondary" id="stopChallenge" type="button" disabled>结束挑战</button>
+    </div>
+    <div class="toast" id="challengeMessage" aria-live="polite">先导入或创作一首乐曲，再开始挑战。</div>
+  </section>
+
+  <section class="keyboard-shell" id="keyboardShell">
     <div class="keyboard-caption">
-      <strong>钢琴全键盘</strong>
-      <span>A0（最低音） <span aria-hidden="true">→</span> C8（最高音）</span>
+      <strong id="keyboardLabel">钢琴全键盘</strong>
+      <span id="keyboardHint">A0（最低音） → C8（最高音）</span>
+    </div>
+    <div class="challenge-stage waiting" id="challengeStage" hidden>
+      <div class="falling-notes" id="fallingNotes"></div>
+      <div class="hit-line"></div>
     </div>
     <div class="piano" id="piano">
       <div class="white-keys" id="whiteKeys"></div>
@@ -79,38 +261,41 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     </div>
   </section>
 
-  <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
-  <div class="result" id="result">等待音高<small>目标范围：钢琴 A0 – C8</small></div>
-  <div class="metrics">
-    <div class="metric"><span>主音频率</span><strong id="frequency">-- Hz</strong></div>
-    <div class="metric notes"><span>识别音符</span><strong id="note">--</strong></div>
-    <div class="metric"><span>同时识别</span><strong id="noteCount">0 个</strong></div>
-  </div>
-  <div class="controls">
-    <button class="primary" id="start">开始监听</button>
-    <button class="secondary" id="stop" disabled>停止</button>
-  </div>
-  <div class="error" id="error" role="status" aria-live="polite"></div>
-  <p class="hint">请允许浏览器访问麦克风。识别到音高后，会点亮对应的白键或黑键；多音同时出现时会尝试点亮多个琴键。音频仅在本机浏览器内处理，不会上传。复杂音色、强混响以及谐波重合的音程仍可能产生误判；若输入削波，请降低音源或麦克风增益。</p>
+  <p class="hint">音频只在本机浏览器处理。MuseScore 导入主要读取音符、和弦、休止符、基础时值、拍号和速度；复杂装饰记号、连音线、歌词、反复跳转等排版信息不会完整还原。创作内容可保存为本程序乐曲文件，或导出 MusicXML 后在 MuseScore 4 中继续编辑。</p>
 </main>
+
 <script>
 (() => {
   'use strict';
 
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const MIN_MIDI = 21; // A0
-  const MAX_MIDI = 108; // C8
-  const FFT_SIZE = 16384;
+  const NOTE_STEPS = [
+    {step:'C',alter:0},{step:'C',alter:1},{step:'D',alter:0},{step:'D',alter:1},
+    {step:'E',alter:0},{step:'F',alter:0},{step:'F',alter:1},{step:'G',alter:0},
+    {step:'G',alter:1},{step:'A',alter:0},{step:'A',alter:1},{step:'B',alter:0}
+  ];
+  const MIN_MIDI = 21;
+  const MAX_MIDI = 108;
+  const FFT_SIZE = 32768;
   const HIT_TOLERANCE_CENTS = 35;
-  const CORE_HARMONIC_THRESHOLD = 0.55;
+  const CORE_HARMONIC_THRESHOLD = 0.50;
   const ACTIVATE_HITS = 2;
   const RELEASE_MISSES = 4;
   const MAX_POLYPHONY = 12;
+  const FALL_SECONDS = 2.2;
+  const HIT_EARLY_WINDOW = 0.32;
+  const HIT_LATE_WINDOW = 0.62;
   const HARMONIC_WEIGHTS = [1.65,1.15,0.90,0.72,0.58,0.48,0.40,0.34,0.30,0.26];
+  const STORAGE_KEY = 'gdt-music-score-v1';
 
   const $ = id => document.getElementById(id);
   const piano = $('piano');
   const whiteKeysContainer = $('whiteKeys');
+  const keyboardShell = $('keyboardShell');
+  const keyboardLabel = $('keyboardLabel');
+  const keyboardHint = $('keyboardHint');
+  const challengeStage = $('challengeStage');
+  const fallingNotesLayer = $('fallingNotes');
   const dot = $('dot');
   const status = $('status');
   const result = $('result');
@@ -120,11 +305,25 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const errorEl = $('error');
   const startButton = $('start');
   const stopButton = $('stop');
+  const scoreFileInput = $('scoreFile');
+  const scoreTitleInput = $('scoreTitle');
+  const scoreBpmInput = $('scoreBpm');
+  const scoreMeterInput = $('scoreMeter');
+  const noteDurationInput = $('noteDuration');
+  const scoreEventsContainer = $('scoreEvents');
+  const selectedPitchesLabel = $('selectedPitches');
+  const editorMessage = $('editorMessage');
 
   const keyElements = new Map();
   const activeMidis = new Set();
+  const selectedPitches = new Set();
   const hitCounts = new Uint8Array(MAX_MIDI + 1);
   const missCounts = new Uint8Array(MAX_MIDI + 1);
+  const lastAttackAt = new Float64Array(MAX_MIDI + 1);
+
+  let mode = 'live';
+  let score = createEmptyScore();
+  let nextEventId = 1;
 
   let context = null;
   let stream = null;
@@ -137,6 +336,27 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   let lastAnalysis = 0;
   let starting = false;
 
+  let playbackContext = null;
+  let playbackTimer = 0;
+
+  let challengeRunning = false;
+  let challengeFrameId = 0;
+  let challengeStartAt = 0;
+  let challengeNotes = [];
+  let challengeHits = 0;
+  let challengeMisses = 0;
+
+  function createEmptyScore() {
+    return {
+      format: 'gdt-music-score',
+      version: 1,
+      title: '我的新乐曲',
+      bpm: 120,
+      meter: { numerator: 4, denominator: 4 },
+      events: []
+    };
+  }
+
   function midiToFrequency(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
@@ -145,36 +365,42 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     return NOTE_NAMES[(midi % 12 + 12) % 12] + (Math.floor(midi / 12) - 1);
   }
 
+  function isWhiteMidi(midi) {
+    return [0,2,4,5,7,9,11].includes(midi % 12);
+  }
+
   function buildKeyboard() {
     const whiteFragment = document.createDocumentFragment();
     let whiteIndex = -1;
     let whiteCount = 0;
 
     for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
-      const pitchClass = midi % 12;
       const noteName = midiToNoteName(midi);
       const key = document.createElement('div');
       key.dataset.midi = String(midi);
       key.title = noteName + ' · ' + midiToFrequency(midi).toFixed(2) + ' Hz';
 
-      if ([0,2,4,5,7,9,11].includes(pitchClass)) {
+      if (isWhiteMidi(midi)) {
         whiteIndex++;
         whiteCount++;
         key.className = 'white-key';
-
-        if (pitchClass === 0) {
+        if (midi % 12 === 0) {
           const label = document.createElement('span');
           label.className = 'octave-label';
           label.textContent = noteName;
           key.appendChild(label);
         }
-
         whiteFragment.appendChild(key);
       } else {
         key.className = 'black-key';
         key.style.left = ((whiteIndex + 1) / 52 * 100).toFixed(6) + '%';
         piano.appendChild(key);
       }
+
+      key.addEventListener('click', () => {
+        if (mode !== 'compose') return;
+        toggleSelectedPitch(midi);
+      });
 
       keyElements.set(midi, key);
     }
@@ -186,6 +412,36 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
   }
 
+  function toggleSelectedPitch(midi) {
+    if (selectedPitches.has(midi)) {
+      selectedPitches.delete(midi);
+      keyElements.get(midi).classList.remove('selected');
+    } else {
+      selectedPitches.add(midi);
+      keyElements.get(midi).classList.add('selected');
+    }
+    renderSelectedPitches();
+  }
+
+  function clearSelectedPitches() {
+    for (const midi of selectedPitches) {
+      const key = keyElements.get(midi);
+      if (key) key.classList.remove('selected');
+    }
+    selectedPitches.clear();
+    renderSelectedPitches();
+  }
+
+  function renderSelectedPitches() {
+    const names = Array.from(selectedPitches).sort((a,b) => a-b).map(midiToNoteName);
+    selectedPitchesLabel.textContent = '';
+    selectedPitchesLabel.appendChild(document.createTextNode('已选琴键：'));
+    const strong = document.createElement('strong');
+    strong.textContent = names.length ? names.join(' · ') : '尚未选择';
+    selectedPitchesLabel.appendChild(strong);
+    selectedPitchesLabel.appendChild(document.createTextNode(names.length ? '。将作为一个和弦写入。' : '。点击下面的琴键，可同时选择多个音组成和弦。'));
+  }
+
   function setKeyActive(midi, active) {
     const key = keyElements.get(midi);
     if (!key) return;
@@ -194,6 +450,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       if (!activeMidis.has(midi)) {
         activeMidis.add(midi);
         key.classList.add('active');
+        lastAttackAt[midi] = performance.now() / 1000;
       }
     } else if (activeMidis.has(midi)) {
       activeMidis.delete(midi);
@@ -205,20 +462,37 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     for (const midi of Array.from(activeMidis)) setKeyActive(midi, false);
     hitCounts.fill(0);
     missCounts.fill(0);
+    lastAttackAt.fill(-Infinity);
+  }
+
+  function setListeningUI() {
+    result.textContent = '监听中';
+    const detail = document.createElement('small');
+    detail.textContent = '请演奏钢琴 88 键范围内的任意单音或和弦';
+    result.appendChild(detail);
+    status.textContent = '正在监听，请演奏钢琴音高';
+  }
+
+  function clearPitchUI() {
+    frequencyEl.textContent = '-- Hz';
+    noteEl.textContent = '--';
+    noteCountEl.textContent = '0 个';
+    result.textContent = '等待音高';
+    const detail = document.createElement('small');
+    detail.textContent = '目标范围：钢琴 A0 – C8';
+    result.appendChild(detail);
   }
 
   function measureInputLevel() {
     let sumSquares = 0;
     let peak = 0;
     let clippedSamples = 0;
-
     for (let i = 0; i < timeData.length; i++) {
       const value = Math.abs(timeData[i]);
       sumSquares += value * value;
       if (value > peak) peak = value;
       if (value >= 0.985) clippedSamples++;
     }
-
     return {
       rms: Math.sqrt(sumSquares / timeData.length),
       peak,
@@ -228,20 +502,17 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   function fillMagnitudes() {
     let maxMagnitude = 0;
-
     for (let i = 0; i < spectrumData.length; i++) {
       const db = spectrumData[i];
       const magnitude = Number.isFinite(db) ? Math.pow(10, db / 20) : 0;
       magnitudeData[i] = magnitude;
       if (magnitude > maxMagnitude) maxMagnitude = magnitude;
     }
-
     return maxMagnitude;
   }
 
   function detectPolyphonicNotes(sampleRate, maxMagnitude) {
     if (maxMagnitude < 1e-7) return [];
-
     const binHz = sampleRate / FFT_SIZE;
     const nyquist = sampleRate / 2;
 
@@ -257,7 +528,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       if (peak <= 0) return 0;
 
       const relativeLevel = peak / maxMagnitude;
-      if (relativeLevel < 0.0012) return 0;
+      if (relativeLevel < 0.0007) return 0;
 
       let floorSum = 0;
       let floorCount = 0;
@@ -272,8 +543,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const localFloor = floorCount ? floorSum / floorCount : 0;
       const ratio = peak / (localFloor + 1e-8);
       const contrastDb = 20 * Math.log10(ratio);
-      const contrast = Math.max(0, Math.min(1, (contrastDb - 5) / 16));
-      const amplitudeGate = Math.max(0, Math.min(1, relativeLevel / 0.003));
+      const contrast = Math.max(0, Math.min(1, (contrastDb - 4) / 15));
+      const amplitudeGate = Math.max(0, Math.min(1, relativeLevel / 0.002));
       return contrast * amplitudeGate;
     }
 
@@ -288,7 +559,6 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       for (let harmonic = 1; harmonic <= HARMONIC_WEIGHTS.length; harmonic++) {
         const harmonicHz = fundamentalHz * harmonic;
         if (harmonicHz >= nyquist - binHz) break;
-
         const evidence = evidenceAt(harmonicHz);
         const weight = HARMONIC_WEIGHTS[harmonic - 1];
         harmonicEvidence.push(evidence);
@@ -296,25 +566,19 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         totalWeight += weight;
       }
 
-      if (harmonicEvidence.length < 4) continue;
+      if (!harmonicEvidence.length) continue;
 
       const fundamentalEvidence = harmonicEvidence[0] || 0;
-      const coreStrongCount = harmonicEvidence
-        .slice(1, 4)
+      const coreStrongCount = harmonicEvidence.slice(1, 4)
         .filter(value => value > CORE_HARMONIC_THRESHOLD).length;
-      const supportCount = harmonicEvidence.filter(value => value > 0.22).length;
+      const supportCount = harmonicEvidence.filter(value => value > 0.18).length;
       const score = weightedScore / (totalWeight || 1);
+      const enoughHarmonics = harmonicEvidence.length >= 4
+        ? coreStrongCount >= 1 && supportCount >= 3
+        : supportCount >= Math.min(2, harmonicEvidence.length);
 
-      // Require a visible fundamental and at least two of the 2nd–4th
-      // partials. This rejects many false notes created by another note's
-      // harmonics, especially in bass-heavy or loud passages.
-      if (fundamentalEvidence > 0.22 && coreStrongCount >= 2 && supportCount >= 3 && score > 0.18) {
-        candidates.push({
-          midi,
-          frequency: fundamentalHz,
-          score,
-          fundamentalEvidence
-        });
+      if (fundamentalEvidence > 0.18 && enoughHarmonics && score > 0.14) {
+        candidates.push({ midi, frequency: fundamentalHz, score, fundamentalEvidence });
       }
     }
 
@@ -322,13 +586,9 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     const strongestScore = Math.max(...candidates.map(candidate => candidate.score));
     const viable = candidates
-      .filter(candidate => candidate.score >= Math.max(0.18, strongestScore * 0.24))
-      .sort((a, b) => a.midi - b.midi);
+      .filter(candidate => candidate.score >= Math.max(0.13, strongestScore * 0.20))
+      .sort((a,b) => a.midi - b.midi);
 
-    // A lower note's partials often look like separate higher notes. Remove
-    // candidates that are close to integer harmonics of an already accepted
-    // lower note. Octave/harmonic intervals remain inherently ambiguous in
-    // a single-microphone spectrum.
     const selected = [];
     for (const candidate of viable) {
       let explainedByLowerNote = false;
@@ -336,11 +596,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       for (const lower of selected) {
         const ratio = candidate.frequency / lower.frequency;
         const harmonic = Math.round(ratio);
-
         if (harmonic < 2 || harmonic > 16) continue;
 
         const harmonicErrorCents = Math.abs(1200 * Math.log2(ratio / harmonic));
-        if (harmonicErrorCents < 28 && lower.score >= candidate.score * 0.45) {
+        if (harmonicErrorCents < 24 && lower.score >= candidate.score * 0.55) {
           explainedByLowerNote = true;
           break;
         }
@@ -355,7 +614,6 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   function updateNoteTracking(detectedNotes) {
     const detected = new Set(detectedNotes.map(note => note.midi));
-
     for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi++) {
       if (detected.has(midi)) {
         hitCounts[midi] = Math.min(255, hitCounts[midi] + 1);
@@ -369,10 +627,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
   }
 
-  function updateDisplay(detectedNotes, inputLevel) {
-    const activeNotes = Array.from(activeMidis).sort((a, b) => a - b);
+  function updateLiveDisplay(detectedNotes, inputLevel) {
+    const activeNotes = Array.from(activeMidis).sort((a,b) => a-b);
     const activeNames = activeNotes.map(midiToNoteName);
-    const strongest = detectedNotes.reduce((best, note) => !best || note.score > best.score ? note : best, null);
+    const strongest = detectedNotes.reduce((best,note) => !best || note.score > best.score ? note : best,null);
 
     frequencyEl.textContent = strongest ? strongest.frequency.toFixed(1) + ' Hz' : '-- Hz';
     noteEl.textContent = activeNames.length ? activeNames.join(' · ') : '--';
@@ -396,70 +654,36 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
   }
 
-  function clearPitchUI() {
-    frequencyEl.textContent = '-- Hz';
-    noteEl.textContent = '--';
-    noteCountEl.textContent = '0 个';
-    result.textContent = '等待音高';
-    const detail = document.createElement('small');
-    detail.textContent = '目标范围：钢琴 A0 – C8';
-    result.appendChild(detail);
-  }
-
   function analyse(timestamp) {
     if (!analyser || !timeData || !spectrumData || !context) return;
-
     raf = requestAnimationFrame(analyse);
     if (timestamp - lastAnalysis < 55) return;
     lastAnalysis = timestamp;
 
     analyser.getFloatTimeDomainData(timeData);
     const inputLevel = measureInputLevel();
-
     analyser.getFloatFrequencyData(spectrumData);
     const maxMagnitude = fillMagnitudes();
 
-    const detectedNotes = inputLevel.rms < 0.0012
+    const detectedNotes = inputLevel.rms < 0.00065
       ? []
       : detectPolyphonicNotes(context.sampleRate, maxMagnitude);
 
     updateNoteTracking(detectedNotes);
-    updateDisplay(detectedNotes, inputLevel);
+    if (mode === 'live') updateLiveDisplay(detectedNotes,inputLevel);
   }
 
-  async function stop() {
-    if (raf) cancelAnimationFrame(raf);
-    raf = 0;
-
-    if (stream) stream.getTracks().forEach(track => track.stop());
-    stream = null;
-
-    if (context && context.state !== 'closed') await context.close();
-    context = null;
-    analyser = null;
-    source = null;
-    timeData = null;
-    spectrumData = null;
-    magnitudeData = null;
-
-    clearActiveKeys();
-    dot.classList.remove('live');
-    status.textContent = '尚未启动麦克风监听';
-    clearPitchUI();
-    startButton.disabled = false;
-    stopButton.disabled = true;
-  }
-
-  async function start() {
-    if (starting || context) return;
-    errorEl.textContent = '';
+  async function startAudio() {
+    if (context) return true;
+    if (starting) return false;
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       errorEl.textContent = '浏览器不支持麦克风访问，请使用 HTTPS 地址或 localhost 打开。';
-      return;
+      return false;
     }
 
     starting = true;
+    errorEl.textContent = '';
     startButton.disabled = true;
     status.textContent = '正在请求麦克风权限…';
 
@@ -479,7 +703,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
       analyser = context.createAnalyser();
       analyser.fftSize = FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.12;
+      analyser.smoothingTimeConstant = 0.08;
       analyser.minDecibels = -120;
       analyser.maxDecibels = 0;
 
@@ -491,15 +715,14 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       magnitudeData = new Float32Array(analyser.frequencyBinCount);
 
       clearActiveKeys();
-      setListeningUI();
       dot.classList.add('live');
       stopButton.disabled = false;
       lastAnalysis = 0;
       raf = requestAnimationFrame(analyse);
+      return true;
     } catch (error) {
       if (stream) stream.getTracks().forEach(track => track.stop());
       stream = null;
-
       if (context && context.state !== 'closed') await context.close();
       context = null;
       analyser = null;
@@ -507,35 +730,1007 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       timeData = null;
       spectrumData = null;
       magnitudeData = null;
-
       startButton.disabled = false;
       dot.classList.remove('live');
       status.textContent = '麦克风未启动';
       errorEl.textContent = error && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
         ? '麦克风权限被拒绝，请在浏览器网站权限中允许麦克风。'
         : '无法启动麦克风：' + (error && error.message ? error.message : '未知错误');
+      return false;
     } finally {
       starting = false;
     }
   }
 
-  function setListeningUI() {
-    result.textContent = '监听中';
-    const detail = document.createElement('small');
-    detail.textContent = '请演奏钢琴 88 键范围内的任意单音或和弦';
-    result.appendChild(detail);
-    status.textContent = '正在监听，请演奏钢琴音高';
+  async function stopAudio() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    if (context && context.state !== 'closed') await context.close();
+    context = null;
+    analyser = null;
+    source = null;
+    timeData = null;
+    spectrumData = null;
+    magnitudeData = null;
+    clearActiveKeys();
+    dot.classList.remove('live');
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    if (mode === 'live') {
+      status.textContent = '尚未启动麦克风监听';
+      clearPitchUI();
+    }
+  }
+
+  function parseDuration(element, measureBeats, division) {
+    const durationTypeNode = directChild(element,'durationType');
+    const durationType = durationTypeNode ? durationTypeNode.textContent.trim().toLowerCase() : '';
+    const map = {
+      longa:16, breve:8, whole:4, half:2, quarter:1,
+      eighth:0.5, '16th':0.25, '32nd':0.125, '64th':0.0625, '128th':0.03125,
+      measure:measureBeats
+    };
+    let beats = map[durationType] || 0;
+
+    if (!beats) {
+      const durationNode = directChild(element,'duration');
+      if (durationNode) {
+        const raw = durationNode.textContent.trim();
+        if (raw.includes('/')) {
+          const parts = raw.split('/');
+          const numerator = Number(parts[0]);
+          const denominator = Number(parts[1]);
+          if (denominator) beats = 4 * numerator / denominator;
+        } else if (Number.isFinite(Number(raw)) && division > 0) {
+          beats = Number(raw) / division;
+        }
+      }
+    }
+
+    if (!beats) beats = 1;
+    const dotsNode = directChild(element,'dots');
+    const dots = dotsNode ? Math.max(0,Math.min(3,Number(dotsNode.textContent.trim()) || 0)) : 0;
+    if (dots > 0) beats *= 2 - Math.pow(0.5,dots);
+    return Math.max(0.03125,Math.min(16,beats));
+  }
+
+  function directChild(node, name) {
+    if (!node) return null;
+    for (const child of Array.from(node.children || [])) {
+      if (child.localName === name) return child;
+    }
+    return null;
+  }
+
+  function firstDescendant(node, name) {
+    if (!node) return null;
+    const list = node.getElementsByTagName(name);
+    return list.length ? list[0] : null;
+  }
+
+  function childText(node,name,fallback) {
+    const child = directChild(node,name) || firstDescendant(node,name);
+    return child ? child.textContent.trim() : (fallback || '');
+  }
+
+  function parseFractionAsBeats(value,division) {
+    if (!value) return 0;
+    const raw = String(value).trim();
+    if (raw.includes('/')) {
+      const parts = raw.split('/');
+      const numerator = Number(parts[0]);
+      const denominator = Number(parts[1]);
+      return denominator ? 4 * numerator / denominator : 0;
+    }
+    const number = Number(raw);
+    return Number.isFinite(number) && division > 0 ? number / division : 0;
+  }
+
+  function parseTempoFromMuseScore(scoreNode) {
+    const tempoNodes = scoreNode.getElementsByTagName('Tempo');
+    for (const tempoNode of Array.from(tempoNodes)) {
+      const tempoText = childText(tempoNode,'tempo','');
+      const value = Number(tempoText);
+      if (Number.isFinite(value) && value > 0) {
+        return Math.round(value < 20 ? value * 60 : value);
+      }
+      const display = childText(tempoNode,'text','');
+      const match = display.match(/(\d+(?:\.\d+)?)/);
+      if (match) return Math.round(Number(match[1]));
+    }
+    return 120;
+  }
+
+  function parseMuseScoreXml(xmlText,fileName) {
+    const doc = new DOMParser().parseFromString(xmlText,'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) {
+      throw new Error('MuseScore XML 解析失败，文件可能已损坏。');
+    }
+
+    const scoreNode = doc.getElementsByTagName('Score')[0];
+    if (!scoreNode) throw new Error('文件中没有找到 MuseScore Score 数据。');
+
+    const divisionNode = firstDescendant(scoreNode,'Division');
+    const division = divisionNode ? Number(divisionNode.textContent) || 480 : 480;
+
+    let staffNodes = Array.from(scoreNode.children).filter(node => node.localName === 'Staff');
+    if (!staffNodes.length) {
+      staffNodes = Array.from(scoreNode.getElementsByTagName('Staff'))
+        .filter(node => directChildren(node,'Measure').length > 0);
+    }
+
+    let measureLists = staffNodes.map(staff => directChildren(staff,'Measure'));
+    if (!measureLists.length || !measureLists.some(list => list.length)) {
+      measureLists = [directChildren(scoreNode,'Measure')];
+    }
+
+    const measureCount = Math.max(0,...measureLists.map(list => list.length));
+    if (!measureCount) throw new Error('没有找到可读取的小节。');
+
+    let meterNumerator = 4;
+    let meterDenominator = 4;
+    let measureStart = 0;
+    const eventMap = new Map();
+    let noteCount = 0;
+
+    for (let measureIndex = 0; measureIndex < measureCount; measureIndex++) {
+      const firstMeasure = measureLists.map(list => list[measureIndex]).find(Boolean);
+      if (firstMeasure) {
+        const timeSig = firstDescendant(firstMeasure,'TimeSig');
+        if (timeSig) {
+          const n = Number(childText(timeSig,'sigN',''));
+          const d = Number(childText(timeSig,'sigD',''));
+          if (n > 0 && d > 0) {
+            meterNumerator = n;
+            meterDenominator = d;
+          }
+        }
+      }
+
+      const measureBeats = meterNumerator * 4 / meterDenominator;
+      let longestVoice = 0;
+
+      for (const measureList of measureLists) {
+        const measure = measureList[measureIndex];
+        if (!measure) continue;
+
+        let voices = directChildren(measure,'voice');
+        if (!voices.length) voices = [measure];
+
+        for (const voice of voices) {
+          let cursor = 0;
+          for (const item of Array.from(voice.children || [])) {
+            if (item.localName === 'Chord') {
+              const duration = parseDuration(item,measureBeats,division);
+              const notes = directChildren(item,'Note');
+              for (const note of notes) {
+                const pitch = Number(childText(note,'pitch',''));
+                if (!Number.isInteger(pitch) || pitch < MIN_MIDI || pitch > MAX_MIDI) continue;
+                const beat = measureStart + cursor;
+                const key = beat.toFixed(6) + '|' + duration.toFixed(6);
+                let event = eventMap.get(key);
+                if (!event) {
+                  event = { id:'import-' + (eventMap.size + 1), beat, duration, pitches:[] };
+                  eventMap.set(key,event);
+                }
+                if (!event.pitches.includes(pitch)) event.pitches.push(pitch);
+                noteCount++;
+              }
+              cursor += duration;
+            } else if (item.localName === 'Rest') {
+              cursor += parseDuration(item,measureBeats,division);
+            }
+          }
+          if (cursor > longestVoice) longestVoice = cursor;
+        }
+      }
+
+      const measureNodeLength = firstMeasure ? parseFractionAsBeats(firstMeasure.getAttribute('len'),division) : 0;
+      measureStart += Math.max(measureBeats,measureNodeLength,longestVoice);
+    }
+
+    const titleNode = firstDescendant(scoreNode,'workTitle') || firstDescendant(scoreNode,'movementTitle');
+    let title = titleNode ? titleNode.textContent.trim() : '';
+    const metaTags = scoreNode.getElementsByTagName('metaTag');
+    for (const meta of Array.from(metaTags)) {
+      if (meta.getAttribute('name') === 'workTitle' && meta.textContent.trim()) title = meta.textContent.trim();
+    }
+    if (!title) title = fileName.replace(/\.[^.]+$/,'');
+
+    const events = Array.from(eventMap.values())
+      .map(event => ({...event,pitches:event.pitches.sort((a,b) => a-b)}))
+      .sort((a,b) => a.beat - b.beat || a.duration - b.duration);
+
+    return {
+      format:'gdt-music-score',version:1,title,bpm:parseTempoFromMuseScore(scoreNode),
+      meter:{numerator:meterNumerator,denominator:meterDenominator},
+      events,
+      importInfo:{source:fileName,measures:measureCount,noteCount}
+    };
+  }
+
+  function directChildren(node,name) {
+    return Array.from(node.children || []).filter(child => child.localName === name);
+  }
+
+  function parseMusicXML(xmlText,fileName) {
+    const doc = new DOMParser().parseFromString(xmlText,'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('MusicXML 解析失败。');
+
+    const part = doc.getElementsByTagName('part')[0];
+    if (!part) throw new Error('MusicXML 中没有找到乐器声部。');
+
+    let divisions = 1;
+    let meterNumerator = 4;
+    let meterDenominator = 4;
+    let bpm = 120;
+    let globalBeat = 0;
+    const eventMap = new Map();
+    let noteCount = 0;
+    const measures = directChildren(part,'measure');
+
+    for (const measure of measures) {
+      const attributes = directChild(measure,'attributes');
+      if (attributes) {
+        const div = Number(childText(attributes,'divisions',''));
+        if (div > 0) divisions = div;
+        const time = directChild(attributes,'time');
+        if (time) {
+          const n = Number(childText(time,'beats',''));
+          const d = Number(childText(time,'beat-type',''));
+          if (n > 0 && d > 0) {
+            meterNumerator = n;
+            meterDenominator = d;
+          }
+        }
+      }
+
+      const sound = firstDescendant(measure,'sound');
+      if (sound && sound.getAttribute('tempo')) {
+        const parsedTempo = Number(sound.getAttribute('tempo'));
+        if (parsedTempo > 0) bpm = Math.round(parsedTempo);
+      }
+      const perMinute = firstDescendant(measure,'per-minute');
+      if (perMinute && Number(perMinute.textContent) > 0) bpm = Math.round(Number(perMinute.textContent));
+
+      let cursor = 0;
+      let previousNoteStart = 0;
+
+      for (const item of Array.from(measure.children)) {
+        if (item.localName === 'backup' || item.localName === 'forward') {
+          const amount = Number(childText(item,'duration','')) / divisions;
+          cursor += item.localName === 'backup' ? -amount : amount;
+          cursor = Math.max(0,cursor);
+        } else if (item.localName === 'note') {
+          const duration = Number(childText(item,'duration','0')) / divisions;
+          const isChordTone = !!directChild(item,'chord');
+          const beat = isChordTone ? previousNoteStart : cursor;
+          const rest = !!directChild(item,'rest');
+
+          if (!rest) {
+            const pitchNode = directChild(item,'pitch');
+            if (pitchNode) {
+              const step = childText(pitchNode,'step','C');
+              const alter = Number(childText(pitchNode,'alter','0'));
+              const octave = Number(childText(pitchNode,'octave','4'));
+              const pitchClass = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[step];
+              const midi = (octave + 1) * 12 + pitchClass + alter;
+              if (Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI) {
+                const key = (globalBeat + beat).toFixed(6) + '|' + duration.toFixed(6);
+                let event = eventMap.get(key);
+                if (!event) {
+                  event = {id:'xml-' + (eventMap.size + 1),beat:globalBeat + beat,duration,pitches:[]};
+                  eventMap.set(key,event);
+                }
+                if (!event.pitches.includes(midi)) event.pitches.push(midi);
+                noteCount++;
+              }
+            }
+          }
+
+          if (!isChordTone) {
+            previousNoteStart = cursor;
+            cursor += duration;
+          }
+        }
+      }
+
+      globalBeat += meterNumerator * 4 / meterDenominator;
+    }
+
+    const titleNode = firstDescendant(doc,'work-title');
+    const title = titleNode ? titleNode.textContent.trim() : fileName.replace(/\.[^.]+$/,'');
+    return {
+      format:'gdt-music-score',version:1,title,bpm,
+      meter:{numerator:meterNumerator,denominator:meterDenominator},
+      events:Array.from(eventMap.values()).sort((a,b) => a.beat-b.beat),
+      importInfo:{source:fileName,measures:measures.length,noteCount}
+    };
+  }
+
+  async function extractMscxFromZip(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const view = new DataView(buffer);
+    let eocd = -1;
+    const searchStart = Math.max(0,bytes.length - 65557);
+
+    for (let offset = bytes.length - 22; offset >= searchStart; offset--) {
+      if (view.getUint32(offset,true) === 0x06054b50) {
+        eocd = offset;
+        break;
+      }
+    }
+    if (eocd < 0) throw new Error('MSCZ 文件不是有效 ZIP 压缩包。');
+
+    const entryCount = view.getUint16(eocd + 10,true);
+    let cursor = view.getUint32(eocd + 16,true);
+    const decoder = new TextDecoder('utf-8');
+
+    for (let index = 0; index < entryCount; index++) {
+      if (view.getUint32(cursor,true) !== 0x02014b50) throw new Error('MSCZ ZIP 目录结构异常。');
+
+      const method = view.getUint16(cursor + 10,true);
+      const compressedSize = view.getUint32(cursor + 20,true);
+      const uncompressedSize = view.getUint32(cursor + 24,true);
+      const nameLength = view.getUint16(cursor + 28,true);
+      const extraLength = view.getUint16(cursor + 30,true);
+      const commentLength = view.getUint16(cursor + 32,true);
+      const localOffset = view.getUint32(cursor + 42,true);
+      const name = decoder.decode(bytes.subarray(cursor + 46,cursor + 46 + nameLength));
+      cursor += 46 + nameLength + extraLength + commentLength;
+
+      if (!name.toLowerCase().endsWith('.mscx')) continue;
+
+      if (view.getUint32(localOffset,true) !== 0x04034b50) {
+        throw new Error('MSCZ 中的乐谱数据头无效。');
+      }
+
+      const localNameLength = view.getUint16(localOffset + 26,true);
+      const localExtraLength = view.getUint16(localOffset + 28,true);
+      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+      const compressed = bytes.subarray(dataStart,dataStart + compressedSize);
+
+      let resultBytes;
+      if (method === 0) {
+        resultBytes = compressed;
+      } else if (method === 8) {
+        if (!('DecompressionStream' in window)) {
+          throw new Error('当前浏览器不支持 ZIP 解压，请使用最新版 Chrome、Edge 或 Safari。');
+        }
+        const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        resultBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+      } else {
+        throw new Error('暂不支持此 MSCZ ZIP 压缩方式（method ' + method + '）。');
+      }
+
+      if (uncompressedSize && resultBytes.length !== uncompressedSize) {
+        throw new Error('MSCZ 乐谱解压长度校验失败。');
+      }
+      return decoder.decode(resultBytes);
+    }
+
+    throw new Error('MSCZ 压缩包中没有找到 .mscx 乐谱文件。');
+  }
+
+  function normalizeScore(input) {
+    if (!input || !Array.isArray(input.events)) throw new Error('乐曲文件结构不正确。');
+    const normalized = createEmptyScore();
+    normalized.title = String(input.title || '未命名乐曲').slice(0,100);
+    normalized.bpm = Math.max(30,Math.min(300,Number(input.bpm) || 120));
+    const meter = input.meter || {};
+    normalized.meter = {
+      numerator:Math.max(1,Math.min(16,Number(meter.numerator) || 4)),
+      denominator:[2,4,8,16].includes(Number(meter.denominator)) ? Number(meter.denominator) : 4
+    };
+    normalized.events = input.events.map((event,index) => ({
+      id:String(event.id || ('event-' + (index + 1))),
+      beat:Math.max(0,Number(event.beat) || 0),
+      duration:Math.max(0.03125,Math.min(16,Number(event.duration) || 1)),
+      pitches:Array.from(new Set((event.pitches || []).map(Number).filter(midi => Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI))).sort((a,b) => a-b)
+    })).filter(event => event.pitches.length || event.rest);
+    normalized.events.sort((a,b) => a.beat-b.beat);
+    return normalized;
+  }
+
+  async function importScoreFile(file) {
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) throw new Error('乐谱文件超过 100 MB，暂不支持导入。');
+
+    const name = file.name || 'score';
+    const lower = name.toLowerCase();
+    let imported;
+
+    if (lower.endsWith('.mscz')) {
+      const xml = await extractMscxFromZip(await file.arrayBuffer());
+      imported = parseMuseScoreXml(xml,name);
+    } else if (lower.endsWith('.mscx')) {
+      imported = parseMuseScoreXml(await file.text(),name);
+    } else if (lower.endsWith('.musicxml') || lower.endsWith('.xml')) {
+      imported = parseMusicXML(await file.text(),name);
+    } else if (lower.endsWith('.json')) {
+      imported = normalizeScore(JSON.parse(await file.text()));
+    } else {
+      throw new Error('不支持此文件格式。请选择 .mscz、.mscx、.musicxml、.xml 或本程序乐曲 JSON。');
+    }
+
+    score = normalizeScore(imported);
+    nextEventId = score.events.length + 1;
+    syncScoreToEditor();
+    persistScore();
+    const noteCount = score.events.reduce((sum,event) => sum + event.pitches.length,0);
+    editorMessage.textContent = '导入成功：' + score.events.length + ' 个音符事件，' + noteCount + ' 个音符。';
+    $('challengeTitle').textContent = score.title;
+  }
+
+  function syncScoreToEditor() {
+    scoreTitleInput.value = score.title;
+    scoreBpmInput.value = String(score.bpm);
+    scoreMeterInput.value = score.meter.numerator + '/' + score.meter.denominator;
+    renderScoreEvents();
+  }
+
+  function persistScore() {
+    try {
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(score));
+    } catch (error) {
+      editorMessage.textContent = '浏览器本地存储空间不足；仍可使用“保存乐曲到本地”下载文件。';
+    }
+  }
+
+  function restoreLocalScore() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        score = normalizeScore(JSON.parse(saved));
+        nextEventId = score.events.length + 1;
+      }
+    } catch (error) {
+      score = createEmptyScore();
+    }
+  }
+
+  function updateScoreMetadata() {
+    score.title = (scoreTitleInput.value.trim() || '未命名乐曲').slice(0,100);
+    score.bpm = Math.max(30,Math.min(300,Number(scoreBpmInput.value) || 120));
+    const meterParts = scoreMeterInput.value.split('/');
+    score.meter = {
+      numerator:Number(meterParts[0]) || 4,
+      denominator:Number(meterParts[1]) || 4
+    };
+    $('challengeTitle').textContent = score.title;
+    persistScore();
+  }
+
+  function eventEnd(event) {
+    return event.beat + event.duration;
+  }
+
+  function appendScoreEvent(pitches,isRest) {
+    updateScoreMetadata();
+    const duration = Number(noteDurationInput.value) || 1;
+    const end = score.events.reduce((max,event) => Math.max(max,eventEnd(event)),0);
+    const event = {
+      id:'manual-' + nextEventId++,
+      beat:end,
+      duration,
+      pitches:isRest ? [] : Array.from(pitches).sort((a,b) => a-b),
+      rest:!!isRest
+    };
+    score.events.push(event);
+    score.events.sort((a,b) => a.beat-b.beat);
+    renderScoreEvents();
+    persistScore();
+    clearSelectedPitches();
+    editorMessage.textContent = isRest ? '已添加休止符。' : '已添加 ' + event.pitches.map(midiToNoteName).join(' · ') + '。';
+  }
+
+  function formatDuration(beats) {
+    const names = [
+      [4,'全音符'],[3,'附点二分音符'],[2,'二分音符'],[1.5,'附点四分音符'],
+      [1,'四分音符'],[0.75,'附点八分音符'],[0.5,'八分音符'],[0.25,'十六分音符'],[0.125,'三十二分音符']
+    ];
+    const match = names.find(item => Math.abs(item[0]-beats)<0.0001);
+    return match ? match[1] : beats.toFixed(3).replace(/0+$/,'').replace(/\.$/,'') + ' 拍';
+  }
+
+  function renderScoreEvents() {
+    scoreEventsContainer.textContent = '';
+    const events = score.events.slice().sort((a,b) => a.beat-b.beat);
+    const noteCount = events.reduce((sum,event) => sum + event.pitches.length,0);
+    $('scoreSummary').textContent = events.length + ' 个事件 · ' + noteCount + ' 个音符';
+
+    if (!events.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-score';
+      empty.textContent = '还没有音符。点选琴键后，点击“添加选中音符 / 和弦”开始创作。';
+      scoreEventsContainer.appendChild(empty);
+      return;
+    }
+
+    const shown = events.slice(0,300);
+    shown.forEach((event,index) => {
+      const row = document.createElement('div');
+      row.className = 'score-event';
+
+      const indexLabel = document.createElement('div');
+      indexLabel.className = 'event-index';
+      indexLabel.textContent = String(index + 1).padStart(2,'0') + ' · ' + event.beat.toFixed(2);
+
+      const noteLabel = document.createElement('div');
+      noteLabel.className = 'event-notes';
+      noteLabel.textContent = event.pitches.length ? event.pitches.map(midiToNoteName).join(' + ') : '休止符';
+      const meta = document.createElement('span');
+      meta.className = 'event-meta';
+      meta.textContent = formatDuration(event.duration);
+      noteLabel.appendChild(meta);
+
+      const remove = document.createElement('button');
+      remove.className = 'event-delete';
+      remove.type = 'button';
+      remove.textContent = '删除';
+      remove.addEventListener('click',() => {
+        score.events = score.events.filter(item => item.id !== event.id);
+        renderScoreEvents();
+        persistScore();
+        editorMessage.textContent = '已删除该事件。';
+      });
+
+      row.append(indexLabel,noteLabel,remove);
+      scoreEventsContainer.appendChild(row);
+    });
+
+    if (events.length > shown.length) {
+      const more = document.createElement('div');
+      more.className = 'empty-score';
+      more.textContent = '乐曲共有 ' + events.length + ' 个事件，列表仅显示前 300 个；挑战模式仍会使用完整乐谱。';
+      scoreEventsContainer.appendChild(more);
+    }
+  }
+
+  function downloadBlob(filename,content,mimeType) {
+    const blob = new Blob([content],{type:mimeType});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url),1500);
+  }
+
+  function safeFilename(name) {
+    return (name || 'my-score').replace(/[\\/:*?"<>|]/g,'_').slice(0,80) || 'my-score';
+  }
+
+  function saveScoreFile() {
+    updateScoreMetadata();
+    const payload = JSON.stringify(score,null,2);
+    downloadBlob(safeFilename(score.title) + '.gdtmusic.json',payload,'application/json;charset=utf-8');
+    editorMessage.textContent = '乐曲文件已生成下载，可保存到本地并在下次导入。';
+  }
+
+  function xmlEscape(value) {
+    return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  }
+
+  function musicXmlPitch(midi) {
+    const pitchClass = midi % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    const pitch = NOTE_STEPS[pitchClass];
+    return '<pitch><step>' + pitch.step + '</step>' +
+      (pitch.alter ? '<alter>' + pitch.alter + '</alter>' : '') +
+      '<octave>' + octave + '</octave></pitch>';
+  }
+
+  function musicXmlDurationType(beats) {
+    const baseTypes = [
+      [4,'whole'],[2,'half'],[1,'quarter'],[0.5,'eighth'],[0.25,'16th'],[0.125,'32nd'],[0.0625,'64th']
+    ];
+    for (const base of baseTypes) {
+      for (let dots = 0; dots <= 2; dots++) {
+        const dotted = base[0] * (dots ? 2 - Math.pow(0.5,dots) : 1);
+        if (Math.abs(dotted-beats)<0.0001) {
+          return '<type>' + base[1] + '</type>' + '<dot/>'.repeat(dots);
+        }
+      }
+    }
+    return '<type>quarter</type>';
+  }
+
+  function exportMusicXML() {
+    updateScoreMetadata();
+    const divisions = 960;
+    const meterBeats = score.meter.numerator * 4 / score.meter.denominator;
+    const events = score.events.slice().sort((a,b) => a.beat-b.beat);
+    const totalBeats = events.reduce((max,event) => Math.max(max,eventEnd(event)),0);
+    const measureCount = Math.max(1,Math.ceil(totalBeats / meterBeats));
+    let xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\\n';
+    xml += '<score-partwise version="4.0"><work><work-title>' + xmlEscape(score.title) + '</work-title></work>';
+    xml += '<identification><creator type="composer">GDT Music Lab</creator></identification>';
+    xml += '<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">';
+
+    for (let measureIndex = 0; measureIndex < measureCount; measureIndex++) {
+      const measureStart = measureIndex * meterBeats;
+      const measureEnd = measureStart + meterBeats;
+      const measureEvents = events.filter(event => event.beat >= measureStart - 0.00001 && event.beat < measureEnd - 0.00001);
+      xml += '<measure number="' + (measureIndex + 1) + '">';
+
+      if (measureIndex === 0) {
+        xml += '<attributes><divisions>' + divisions + '</divisions><key><fifths>0</fifths></key>';
+        xml += '<time><beats>' + score.meter.numerator + '</beats><beat-type>' + score.meter.denominator + '</beat-type></time>';
+        xml += '<clef><sign>G</sign><line>2</line></clef></attributes>';
+        xml += '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>' + score.bpm + '</per-minute></metronome></direction-type><sound tempo="' + score.bpm + '"/></direction>';
+      }
+
+      let cursor = 0;
+      for (const event of measureEvents) {
+        const localBeat = Math.max(0,event.beat - measureStart);
+        const duration = Math.max(0.03125,Math.min(event.duration,measureBeats-localBeat));
+        const units = Math.max(1,Math.round(duration * divisions));
+
+        if (localBeat > cursor + 0.00001) {
+          const gap = Math.round((localBeat-cursor)*divisions);
+          xml += '<forward><duration>' + gap + '</duration></forward>';
+          cursor = localBeat;
+        } else if (localBeat < cursor - 0.00001) {
+          const back = Math.round((cursor-localBeat)*divisions);
+          xml += '<backup><duration>' + back + '</duration></backup>';
+          cursor = localBeat;
+        }
+
+        if (!event.pitches.length) {
+          xml += '<note><rest/><duration>' + units + '</duration><voice>1</voice>' + musicXmlDurationType(duration) + '</note>';
+        } else {
+          event.pitches.forEach((midi,index) => {
+            xml += '<note>' + (index ? '<chord/>' : '') + musicXmlPitch(midi);
+            xml += '<duration>' + units + '</duration><voice>1</voice>' + musicXmlDurationType(duration) + '</note>';
+          });
+        }
+        cursor = Math.max(cursor,localBeat+duration);
+      }
+
+      xml += '</measure>';
+    }
+
+    xml += '</part></score-partwise>';
+    downloadBlob(safeFilename(score.title) + '.musicxml',xml,'application/vnd.recordare.musicxml+xml;charset=utf-8');
+    editorMessage.textContent = 'MusicXML 已导出，可使用 MuseScore 4 打开。';
+  }
+
+  async function stopPreview() {
+    if (playbackTimer) clearTimeout(playbackTimer);
+    playbackTimer = 0;
+    if (playbackContext && playbackContext.state !== 'closed') await playbackContext.close();
+    playbackContext = null;
+    $('previewScore').disabled = false;
+    $('stopPreview').disabled = true;
+  }
+
+  async function previewScore() {
+    if (!score.events.length) {
+      editorMessage.textContent = '请先添加或导入音符。';
+      return;
+    }
+    await stopPreview();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    playbackContext = new AudioContextClass();
+    await playbackContext.resume();
+    const startAt = playbackContext.currentTime + 0.12;
+    const secondsPerBeat = 60 / score.bpm;
+    let endAt = startAt;
+
+    for (const event of score.events) {
+      if (!event.pitches.length) continue;
+      const eventStart = startAt + event.beat * secondsPerBeat;
+      const eventEnd = eventStart + event.duration * secondsPerBeat;
+      endAt = Math.max(endAt,eventEnd);
+
+      for (const midi of event.pitches) {
+        const oscillator = playbackContext.createOscillator();
+        const gain = playbackContext.createGain();
+        oscillator.type = 'triangle';
+        oscillator.frequency.value = midiToFrequency(midi);
+        gain.gain.setValueAtTime(0.0001,eventStart);
+        gain.gain.exponentialRampToValueAtTime(0.12,eventStart + 0.025);
+        gain.gain.setValueAtTime(0.12,Math.max(eventStart + 0.03,eventEnd - 0.045));
+        gain.gain.exponentialRampToValueAtTime(0.0001,Math.max(eventStart + 0.05,eventEnd));
+        oscillator.connect(gain);
+        gain.connect(playbackContext.destination);
+        oscillator.start(eventStart);
+        oscillator.stop(eventEnd + 0.02);
+      }
+    }
+
+    $('previewScore').disabled = true;
+    $('stopPreview').disabled = false;
+    playbackTimer = setTimeout(() => stopPreview(),Math.max(250,(endAt-startAt)*1000 + 400));
+    editorMessage.textContent = '正在试听。';
+  }
+
+  function switchMode(nextMode) {
+    if (nextMode === mode) return;
+    if (challengeRunning) stopChallenge('挑战已结束。');
+
+    mode = nextMode;
+    document.querySelectorAll('.mode-tab').forEach(button => {
+      button.classList.toggle('active',button.dataset.mode === mode);
+    });
+
+    $('livePanel').hidden = mode !== 'live';
+    $('composePanel').hidden = mode !== 'compose';
+    $('challengePanel').hidden = mode !== 'challenge';
+    challengeStage.hidden = mode !== 'challenge';
+    keyboardShell.classList.toggle('challenge-mode',mode === 'challenge');
+
+    if (mode === 'live') {
+      keyboardLabel.textContent = '钢琴全键盘 · 实时识别';
+      keyboardHint.textContent = 'A0（最低音） → C8（最高音）';
+      if (context) status.textContent = '麦克风监听中';
+    } else if (mode === 'compose') {
+      keyboardLabel.textContent = '创作键盘 · 点击琴键选择音符';
+      keyboardHint.textContent = '可多选琴键组成和弦';
+      stopAudio();
+      renderSelectedPitches();
+    } else {
+      keyboardLabel.textContent = '挑战键盘 · 看准下落音符';
+      keyboardHint.textContent = '条形抵达琴键时演奏对应音高';
+      challengeStage.classList.add('waiting');
+      challengeStage.classList.remove('running');
+      $('challengeTitle').textContent = score.title;
+    }
+  }
+
+  function keyGeometry(midi) {
+    const key = keyElements.get(midi);
+    if (!key) return null;
+
+    if (!isWhiteMidi(midi)) {
+      const center = Number.parseFloat(key.style.left) || 0;
+      return {left:center - 0.55,width:1.1,black:true};
+    }
+
+    const left = key.offsetLeft / piano.clientWidth * 100;
+    const width = key.offsetWidth / piano.clientWidth * 100;
+    return {left:left + width * 0.14,width:width * 0.72,black:false};
+  }
+
+  function createChallengeNotes() {
+    const startAt = challengeStartAt;
+    const secondsPerBeat = 60 / score.bpm;
+    const notes = [];
+
+    score.events.forEach((event,eventIndex) => {
+      event.pitches.forEach(midi => {
+        notes.push({
+          id:event.id + '-' + midi + '-' + eventIndex,
+          midi,
+          duration:event.duration,
+          hitAt:startAt + event.beat * secondsPerBeat,
+          bar:null,
+          state:'pending'
+        });
+      });
+    });
+
+    notes.sort((a,b) => a.hitAt-b.hitAt || a.midi-b.midi);
+    return notes;
+  }
+
+  function createFallingBar(note) {
+    const geometry = keyGeometry(note.midi);
+    if (!geometry) return null;
+
+    const bar = document.createElement('div');
+    bar.className = 'falling-note' + (geometry.black ? ' black-note' : '');
+    bar.textContent = midiToNoteName(note.midi);
+    bar.style.left = geometry.left + '%';
+    bar.style.width = geometry.width + '%';
+    const height = Math.max(18,Math.min(62,note.duration * 28));
+    bar.style.height = height + 'px';
+    fallingNotesLayer.appendChild(bar);
+    return bar;
+  }
+
+  function updateChallengeStats() {
+    $('challengeHits').textContent = String(challengeHits);
+    $('challengeMisses').textContent = String(challengeMisses);
+    const total = challengeHits + challengeMisses;
+    $('challengeAccuracy').textContent = total ? Math.round(challengeHits / total * 100) + '%' : '--';
+  }
+
+  function challengeLoop() {
+    if (!challengeRunning) return;
+
+    const now = performance.now() / 1000;
+    const stageHeight = challengeStage.clientHeight;
+    let pending = 0;
+
+    for (const note of challengeNotes) {
+      if (note.state !== 'pending') continue;
+      pending++;
+
+      const remaining = note.hitAt - now;
+      if (!note.bar && remaining <= FALL_SECONDS && remaining >= -HIT_LATE_WINDOW) {
+        note.bar = createFallingBar(note);
+      }
+
+      const attackAt = lastAttackAt[note.midi];
+      const matchedInWindow = attackAt >= note.hitAt - HIT_EARLY_WINDOW &&
+        attackAt <= note.hitAt + HIT_LATE_WINDOW &&
+        now >= note.hitAt - HIT_EARLY_WINDOW &&
+        now <= note.hitAt + HIT_LATE_WINDOW;
+
+      if (matchedInWindow) {
+        note.state = 'hit';
+        if (note.bar) {
+          note.bar.classList.add('hit');
+          const bar = note.bar;
+          setTimeout(() => bar.remove(),150);
+        }
+        challengeHits++;
+        pending--;
+        updateChallengeStats();
+        $('challengeMessage').textContent = '命中 ' + midiToNoteName(note.midi) + '！';
+        continue;
+      }
+
+      if (now > note.hitAt + HIT_LATE_WINDOW) {
+        note.state = 'miss';
+        if (note.bar) {
+          note.bar.classList.add('missed');
+          const bar = note.bar;
+          setTimeout(() => bar.remove(),250);
+        }
+        challengeMisses++;
+        pending--;
+        updateChallengeStats();
+        continue;
+      }
+
+      if (note.bar) {
+        const barHeight = note.bar.offsetHeight || 22;
+        const progress = 1 - remaining / FALL_SECONDS;
+        const top = -barHeight + Math.max(0,Math.min(1,progress)) * stageHeight;
+        note.bar.style.top = top + 'px';
+      }
+    }
+
+    if (pending === 0) {
+      challengeRunning = false;
+      challengeFrameId = 0;
+      challengeStage.classList.remove('running');
+      $('stopChallenge').disabled = true;
+      $('startChallenge').disabled = false;
+      $('challengeMessage').textContent = '挑战完成！命中 ' + challengeHits + ' 个，未命中 ' + challengeMisses + ' 个。';
+      return;
+    }
+
+    challengeFrameId = requestAnimationFrame(challengeLoop);
+  }
+
+  async function startChallenge() {
+    if (challengeRunning) return;
+    if (!score.events.some(event => event.pitches.length)) {
+      $('challengeMessage').textContent = '当前乐曲没有音符，请先导入或创作乐曲。';
+      return;
+    }
+
+    $('challengeMessage').textContent = '正在启动麦克风…';
+    const ready = await startAudio();
+    if (!ready) {
+      $('challengeMessage').textContent = '麦克风启动失败，请检查浏览器权限。';
+      return;
+    }
+
+    clearActiveKeys();
+    fallingNotesLayer.textContent = '';
+    challengeHits = 0;
+    challengeMisses = 0;
+    updateChallengeStats();
+
+    challengeStartAt = performance.now() / 1000 + 3;
+    challengeNotes = createChallengeNotes();
+    challengeRunning = true;
+    challengeStage.classList.remove('waiting');
+    challengeStage.classList.add('running');
+    $('startChallenge').disabled = true;
+    $('stopChallenge').disabled = false;
+    $('challengeMessage').textContent = '3 秒后开始，准备演奏！';
+    challengeFrameId = requestAnimationFrame(challengeLoop);
+  }
+
+  function stopChallenge(message) {
+    challengeRunning = false;
+    if (challengeFrameId) cancelAnimationFrame(challengeFrameId);
+    challengeFrameId = 0;
+    challengeNotes.forEach(note => {
+      if (note.bar) note.bar.remove();
+    });
+    challengeNotes = [];
+    fallingNotesLayer.textContent = '';
+    challengeStage.classList.remove('running');
+    challengeStage.classList.add('waiting');
+    $('startChallenge').disabled = false;
+    $('stopChallenge').disabled = true;
+    if (message) $('challengeMessage').textContent = message;
+  }
+
+  function xmlEscapeNameOnly(value) {
+    return String(value || '').replace(/[\\/:*?"<>|]/g,'_').slice(0,80) || 'my-score';
+  }
+
+  function initEvents() {
+    document.querySelectorAll('.mode-tab').forEach(button => {
+      button.addEventListener('click',() => switchMode(button.dataset.mode));
+    });
+
+    startButton.addEventListener('click',async () => {
+      const ready = await startAudio();
+      if (ready) {
+        setListeningUI();
+        status.textContent = '正在监听，请演奏钢琴音高';
+      }
+    });
+    stopButton.addEventListener('click',stopAudio);
+
+    scoreTitleInput.addEventListener('input',updateScoreMetadata);
+    scoreBpmInput.addEventListener('change',updateScoreMetadata);
+    scoreMeterInput.addEventListener('change',updateScoreMetadata);
+
+    $('addNotes').addEventListener('click',() => {
+      if (!selectedPitches.size) {
+        editorMessage.textContent = '请先点击钢琴琴键选择至少一个音符。';
+        return;
+      }
+      appendScoreEvent(selectedPitches,false);
+    });
+    $('addRest').addEventListener('click',() => appendScoreEvent([],true));
+    $('undoEvent').addEventListener('click',() => {
+      if (!score.events.length) return;
+      score.events.pop();
+      renderScoreEvents();
+      persistScore();
+      editorMessage.textContent = '已撤销上一项。';
+    });
+
+    $('previewScore').addEventListener('click',previewScore);
+    $('stopPreview').addEventListener('click',stopPreview);
+    $('saveScore').addEventListener('click',saveScoreFile);
+    $('exportMusicXML').addEventListener('click',exportMusicXML);
+
+    scoreFileInput.addEventListener('change',async event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      editorMessage.textContent = '正在读取乐谱…';
+      try {
+        await importScoreFile(file);
+      } catch (error) {
+        editorMessage.textContent = '导入失败：' + (error && error.message ? error.message : '未知错误');
+      } finally {
+        scoreFileInput.value = '';
+      }
+    });
+
+    $('startChallenge').addEventListener('click',startChallenge);
+    $('stopChallenge').addEventListener('click',() => stopChallenge('挑战已由用户结束。'));
+
+    window.addEventListener('pagehide',() => {
+      if (stream) stream.getTracks().forEach(track => track.stop());
+      if (playbackContext && playbackContext.state !== 'closed') playbackContext.close();
+    });
   }
 
   buildKeyboard();
+  restoreLocalScore();
+  syncScoreToEditor();
+  renderSelectedPitches();
   clearPitchUI();
-  startButton.addEventListener('click', start);
-  stopButton.addEventListener('click', () => {
-    if (!starting) stop();
-  });
-  window.addEventListener('pagehide', () => {
-    if (stream) stream.getTracks().forEach(track => track.stop());
-  });
+  initEvents();
+  $('challengeTitle').textContent = score.title;
+  updateChallengeStats();
 })();
 </script>
 </body>
