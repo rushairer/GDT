@@ -635,7 +635,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         if (harmonic < 2 || harmonic > 16) continue;
 
         const harmonicErrorCents = Math.abs(1200 * Math.log2(ratio / harmonic));
-        if (harmonicErrorCents < 24 && lower.score >= candidate.score * 0.55) {
+        // Do not discard a real octave/fifth in a chord merely because
+        // its pitch also coincides with a lower note's harmonic. Suppress it
+        // only when its own fundamental is weak relative to the lower note.
+        const likelyOvertone = candidate.amplitude < lower.amplitude * 0.55;
+        if (harmonicErrorCents < 24 &&
+            lower.score >= candidate.score * 0.55 &&
+            likelyOvertone) {
           explainedByLowerNote = true;
           break;
         }
