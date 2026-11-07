@@ -58,7 +58,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 .challenge-stage{position:relative;height:clamp(170px,30vh,280px);overflow:hidden;border:1px solid rgba(123,158,216,.13);border-radius:10px 10px 0 0;background:linear-gradient(180deg,rgba(12,20,37,.96),rgba(21,35,60,.68));margin-bottom:0}
 .challenge-stage:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100% / 52 - 1px),rgba(135,163,211,.055) calc(100% / 52 - 1px),rgba(135,163,211,.055) calc(100% / 52));pointer-events:none}
 .falling-notes{position:absolute;inset:0;overflow:hidden}
-.falling-note{position:absolute;top:0;min-width:4px;border-radius:5px 5px 3px 3px;background:linear-gradient(180deg,#9eeaff,#4a9dff 72%,#5265ef);box-shadow:0 0 10px rgba(81,164,255,.52),inset 0 1px 2px rgba(255,255,255,.5);display:flex;align-items:flex-start;justify-content:center;padding-top:4px;color:#06182e;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;pointer-events:none}
+.falling-note{position:absolute;top:0;min-width:4px;border-radius:5px 5px 3px 3px;background:linear-gradient(180deg,#9eeaff,#4a9dff 72%,#5265ef);box-shadow:0 0 10px rgba(81,164,255,.52),inset 0 1px 2px rgba(255,255,255,.5);display:block;padding:0;overflow:hidden;pointer-events:none}
 .falling-note.black-note{background:linear-gradient(180deg,#e0c8ff,#9a76ff 72%,#6548d7);box-shadow:0 0 10px rgba(163,122,255,.55),inset 0 1px 2px rgba(255,255,255,.5)}
 .falling-note.hit{opacity:0;transform:scaleY(.15);transition:opacity 120ms ease,transform 120ms ease}
 .falling-note.missed{background:linear-gradient(180deg,#ffb0b0,#dc526b);box-shadow:0 0 10px rgba(255,80,110,.45);opacity:.4}
@@ -354,6 +354,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       title: '我的新乐曲',
       bpm: 120,
       meter: { numerator: 4, denominator: 4 },
+      tempoChanges: [{ beat: 0, bpm: 120 }],
       events: []
     };
   }
@@ -1561,22 +1562,29 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     if (!input || !Array.isArray(input.events)) throw new Error('乐曲文件结构不正确。');
     const normalized = createEmptyScore();
     normalized.title = String(input.title || '未命名乐曲').slice(0,100);
-    normalized.bpm = Math.max(30,Math.min(300,Number(input.bpm) || 120));
+    normalized.bpm = Math.max(5,Math.min(999,Number(input.bpm) || 120));
+
     const meter = input.meter || {};
     normalized.meter = {
       numerator:Math.max(1,Math.min(16,Number(meter.numerator) || 4)),
       denominator:[2,4,8,16].includes(Number(meter.denominator)) ? Number(meter.denominator) : 4
     };
+
+    normalized.tempoChanges = normalizeTempoChanges(input.tempoChanges,normalized.bpm);
+    normalized.bpm = normalized.tempoChanges[0].bpm;
+    normalized.importInfo = input.importInfo || null;
+
     normalized.events = input.events.map((event,index) => ({
       id:String(event.id || ('event-' + (index + 1))),
       beat:Math.max(0,Number(event.beat) || 0),
-      duration:Math.max(0.03125,Math.min(16,Number(event.duration) || 1)),
-      pitches:Array.from(new Set((event.pitches || []).map(Number).filter(midi => Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI))).sort((a,b) => a-b)
+      duration:Math.max(0.015625,Math.min(32,Number(event.duration) || 1)),
+      pitches:Array.from(new Set((event.pitches || []).map(Number).filter(midi => Number.isInteger(midi) && midi >= MIN_MIDI && midi <= MAX_MIDI))).sort((a,b) => a-b),
+      rest:!!event.rest
     })).filter(event => event.pitches.length || event.rest);
+
     normalized.events.sort((a,b) => a.beat-b.beat);
     return normalized;
   }
-
   async function importScoreFile(file) {
     if (!file) return;
     if (file.size > 100 * 1024 * 1024) throw new Error('乐谱文件超过 100 MB，暂不支持导入。');
@@ -1603,7 +1611,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     syncScoreToEditor();
     persistScore();
     const noteCount = score.events.reduce((sum,event) => sum + event.pitches.length,0);
-    editorMessage.textContent = '导入成功：' + score.events.length + ' 个音符事件，' + noteCount + ' 个音符。';
+    const importInfo = score.importInfo || {};
+    const repeatText = importInfo.repeatedMeasures ? '，已展开 ' + importInfo.repeatedMeasures + ' 个反复小节' : '';
+    const tempoText = score.tempoChanges.length > 1 ? '，读取 ' + (score.tempoChanges.length - 1) + ' 处速度变化' : '';
+    editorMessage.textContent = '导入成功：' + score.events.length + ' 个音符事件，' + noteCount + ' 个音符' + repeatText + tempoText + '。';
     $('challengeTitle').textContent = score.title;
   }
 
@@ -1644,16 +1655,24 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   function updateScoreMetadata() {
     score.title = (scoreTitleInput.value.trim() || '未命名乐曲').slice(0,100);
-    score.bpm = Math.max(30,Math.min(300,Number(scoreBpmInput.value) || 120));
+    score.bpm = Math.max(5,Math.min(999,Number(scoreBpmInput.value) || 120));
+
     const meterParts = (scoreMeterInput.value || (score.meter.numerator + '/' + score.meter.denominator)).split('/');
     score.meter = {
       numerator:Number(meterParts[0]) || score.meter.numerator || 4,
       denominator:Number(meterParts[1]) || score.meter.denominator || 4
     };
+
+    const changes = normalizeTempoChanges(score.tempoChanges,score.bpm);
+    if (changes.length && Math.abs(changes[0].beat) < 0.00001) {
+      changes[0].bpm = score.bpm;
+    } else {
+      changes.unshift({beat:0,bpm:score.bpm});
+    }
+    score.tempoChanges = normalizeTempoChanges(changes,score.bpm);
     $('challengeTitle').textContent = score.title;
     persistScore();
   }
-
   function eventEnd(event) {
     return event.beat + event.duration;
   }
@@ -1865,18 +1884,20 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       editorMessage.textContent = '请先添加或导入音符。';
       return;
     }
+
     await stopPreview();
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     playbackContext = new AudioContextClass();
     await playbackContext.resume();
+
     const startAt = playbackContext.currentTime + 0.12;
-    const secondsPerBeat = 60 / score.bpm;
     let endAt = startAt;
 
     for (const event of score.events) {
       if (!event.pitches.length) continue;
-      const eventStart = startAt + event.beat * secondsPerBeat;
-      const eventEnd = eventStart + event.duration * secondsPerBeat;
+
+      const eventStart = startAt + scoreBeatToSeconds(event.beat);
+      const eventEnd = startAt + scoreBeatToSeconds(event.beat + event.duration);
       endAt = Math.max(endAt,eventEnd);
 
       for (const midi of event.pitches) {
@@ -1898,9 +1919,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     $('previewScore').disabled = true;
     $('stopPreview').disabled = false;
     playbackTimer = setTimeout(() => stopPreview(),Math.max(250,(endAt-startAt)*1000 + 400));
-    editorMessage.textContent = '正在试听。';
+    editorMessage.textContent = '正在试听（已应用乐谱中的速度变化与反复顺序）。';
   }
-
   function switchMode(nextMode) {
     if (nextMode === mode) return;
     if (challengeRunning) stopChallenge('挑战已结束。');
@@ -1950,23 +1970,28 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   function createChallengeNotes() {
     const startAt = challengeStartAt;
-    const secondsPerBeat = 60 / score.bpm;
     const unique = new Map();
 
     score.events.forEach((event,eventIndex) => {
       event.pitches.forEach(midi => {
-        const hitAt = startAt + event.beat * secondsPerBeat;
+        const eventStartSeconds = scoreBeatToSeconds(event.beat);
+        const eventEndSeconds = scoreBeatToSeconds(event.beat + event.duration);
+        const hitAt = startAt + eventStartSeconds;
+        const durationSeconds = Math.max(0.015,eventEndSeconds - eventStartSeconds);
         const key = hitAt.toFixed(4) + '|' + midi;
         const existing = unique.get(key);
+
         if (existing) {
-          existing.duration = Math.max(existing.duration,event.duration);
+          existing.durationSeconds = Math.max(existing.durationSeconds,durationSeconds);
         } else {
           unique.set(key,{
             id:event.id + '-' + midi + '-' + eventIndex,
             midi,
             duration:event.duration,
+            durationSeconds,
             hitAt,
             bar:null,
+            barHeight:0,
             state:'pending'
           });
         }
@@ -1975,22 +2000,25 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     return Array.from(unique.values()).sort((a,b) => a.hitAt-b.hitAt || a.midi-b.midi);
   }
-
   function createFallingBar(note) {
     const geometry = keyGeometry(note.midi);
     if (!geometry) return null;
 
     const bar = document.createElement('div');
     bar.className = 'falling-note' + (geometry.black ? ' black-note' : '');
-    bar.textContent = midiToNoteName(note.midi);
+    bar.setAttribute('aria-label',midiToNoteName(note.midi) + ' 持续 ' + note.durationSeconds.toFixed(2) + ' 秒');
     bar.style.left = geometry.left + '%';
     bar.style.width = geometry.width + '%';
-    const height = Math.max(18,Math.min(62,note.duration * 28));
-    bar.style.height = height + 'px';
+
+    // The falling bar's length is the note's actual sounding duration.
+    // Its bottom edge reaches the strike line at the scheduled note onset.
+    const pixelsPerSecond = challengeStage.clientHeight / FALL_SECONDS;
+    note.barHeight = Math.max(4,note.durationSeconds * pixelsPerSecond);
+    bar.style.height = note.barHeight + 'px';
+
     fallingNotesLayer.appendChild(bar);
     return bar;
   }
-
   function updateChallengeStats() {
     $('challengeHits').textContent = String(challengeHits);
     $('challengeMisses').textContent = String(challengeMisses);
@@ -2019,8 +2047,6 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const attackInWindow = freshAttack &&
         attackAt >= note.hitAt - HIT_EARLY_WINDOW &&
         attackAt <= note.hitAt + HIT_LATE_WINDOW;
-      // Early playing is remembered, but the bar only disappears when it
-      // reaches the strike line; late recognition gets a short grace window.
       const matchedInWindow = attackInWindow &&
         now >= note.hitAt - 0.04 &&
         now <= note.hitAt + HIT_LATE_WINDOW;
@@ -2054,10 +2080,9 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
 
       if (note.bar) {
-        const barHeight = note.bar.offsetHeight || 22;
-        const progress = 1 - remaining / FALL_SECONDS;
-        const top = -barHeight + Math.max(0,Math.min(1,progress)) * stageHeight;
-        note.bar.style.top = top + 'px';
+        const progress = Math.max(0,Math.min(1,1 - remaining / FALL_SECONDS));
+        const bottom = progress * stageHeight;
+        note.bar.style.top = (bottom - note.barHeight) + 'px';
       }
     }
 
@@ -2073,7 +2098,6 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     challengeFrameId = requestAnimationFrame(challengeLoop);
   }
-
   async function startChallenge() {
     if (challengeRunning) return;
     if (!score.events.some(event => event.pitches.length)) {
