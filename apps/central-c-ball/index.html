@@ -358,6 +358,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       bpm: 120,
       meter: { numerator: 4, denominator: 4 },
       tempoChanges: [{ beat: 0, bpm: 120 }],
+      fermataPauses: [],
       events: []
     };
   }
@@ -893,6 +894,69 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     return found ? found[1] : null;
   }
 
+  function parseMuseScoreFermataStretch(node) {
+    const explicit = Number(childText(node,'timeStretch',''));
+    if (Number.isFinite(explicit) && explicit > 0) {
+      return Math.max(1,Math.min(8,explicit));
+    }
+
+    const subtype = childText(node,'subtype','fermataAbove').toLowerCase();
+    if (subtype.includes('veryshort')) return 1.25;
+    if (subtype.includes('short')) return 1.5;
+    if (subtype.includes('verylong')) return 4;
+    if (subtype.includes('long')) return 3;
+    return 2;
+  }
+
+  function collectMuseScoreFermataStretch(node) {
+    if (!node) return 1;
+    const fermatas = [];
+    if (node.localName === 'Fermata') fermatas.push(node);
+    fermatas.push(...Array.from(node.getElementsByTagName('Fermata')));
+    return fermatas.reduce((max,fermata) =>
+      Math.max(max,parseMuseScoreFermataStretch(fermata)),1
+    );
+  }
+
+  function parseMusicXMLFermataStretch(node) {
+    const shape = (node && node.textContent ? node.textContent : '').trim().toLowerCase();
+    const stretches = {
+      '':2,
+      normal:2,
+      angled:1.5,
+      square:3,
+      'double-angled':1.25,
+      'double-square':4,
+      'double-dot':3,
+      'half-curve':1.5,
+      curlew:1.5,
+      'very-short':1.25,
+      short:1.5,
+      long:3,
+      'very-long':4
+    };
+    return stretches[shape] || 2;
+  }
+
+  function normalizeFermataPauses(pauses) {
+    const sorted = (Array.isArray(pauses) ? pauses : [])
+      .map(item => ({
+        startBeat:Math.max(0,Number(item.startBeat) || 0),
+        endBeat:Math.max(0,Number(item.endBeat) || 0),
+        stretch:Math.max(1,Math.min(8,Number(item.stretch) || 1))
+      }))
+      .filter(item => item.endBeat > item.startBeat + 0.000001 && item.stretch > 1.0001)
+      .sort((a,b) => a.endBeat-b.endBeat || a.startBeat-b.startBeat);
+
+    const unique = new Map();
+    for (const item of sorted) {
+      const key = item.startBeat.toFixed(5) + '|' + item.endBeat.toFixed(5);
+      const previous = unique.get(key);
+      if (!previous || item.stretch > previous.stretch) unique.set(key,item);
+    }
+    return Array.from(unique.values());
+  }
+
   function hasMuseScoreTieForward(node) {
     if (!node) return false;
     return directChildren(node,'Spanner').some(spanner =>
@@ -1076,7 +1140,18 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   }
 
   function scoreBeatToSeconds(beat) {
-    return beatToSeconds(beat,score.tempoChanges,score.bpm);
+    const targetBeat = Math.max(0,Number(beat) || 0);
+    const baseSeconds = beatToSeconds(targetBeat,score.tempoChanges,score.bpm);
+    let fermataExtraSeconds = 0;
+
+    for (const pause of score.fermataPauses || []) {
+      if (pause.endBeat > targetBeat + 0.000001) continue;
+      const writtenDuration = beatToSeconds(pause.endBeat,score.tempoChanges,score.bpm) -
+        beatToSeconds(pause.startBeat,score.tempoChanges,score.bpm);
+      fermataExtraSeconds += Math.max(0,writtenDuration) * (pause.stretch - 1);
+    }
+
+    return baseSeconds + fermataExtraSeconds;
   }
   function parseMuseScoreXml(xmlText,fileName) {
     const doc = new DOMParser().parseFromString(xmlText,'application/xml');
@@ -1616,6 +1691,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     normalized.tempoChanges = normalizeTempoChanges(input.tempoChanges,normalized.bpm);
     normalized.bpm = normalized.tempoChanges[0].bpm;
+    normalized.fermataPauses = normalizeFermataPauses(input.fermataPauses);
     normalized.importInfo = input.importInfo || null;
 
     normalized.events = input.events.map((event,index) => ({
