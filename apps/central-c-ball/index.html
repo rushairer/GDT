@@ -1497,6 +1497,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const endingsForMeasure = activeEndingNumbers.slice();
       const localEvents = new Map();
       const localTempos = [];
+      const localFermatas = [];
       let cursor = 0;
       let maxCursor = 0;
       let previousNoteStart = 0;
@@ -1516,6 +1517,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           const isChordTone = !!directChild(item,'chord');
           const beat = isChordTone ? previousNoteStart : cursor;
           const rest = !!directChild(item,'rest');
+          const fermataNodes = Array.from(item.getElementsByTagName('fermata'));
+          if (fermataNodes.length && duration > 0) {
+            const stretch = fermataNodes.reduce((max,fermata) => Math.max(max,parseMusicXMLFermataStretch(fermata)),1);
+            if (stretch > 1) localFermatas.push({startBeat:beat,endBeat:beat + duration,stretch});
+          }
 
           if (!rest) {
             const pitchNode = directChild(item,'pitch');
@@ -1578,6 +1584,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           ...event,pitches:event.pitches.sort((a,b) => a-b),tiePitches:event.tiePitches.sort((a,b) => a-b)
         })),
         tempos:localTempos,
+        fermatas:normalizeFermataPauses(localFermatas),
         repeatStart,
         repeatCount,
         endingNumbers:endingsForMeasure,
@@ -1591,6 +1598,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const playbackOrder = buildPlaybackMeasureOrder(measureInfos);
     const events = [];
     const tempoChanges = [];
+    const fermataPauses = [];
     let playbackBeat = 0;
     let eventIndex = 0;
 
@@ -1608,6 +1616,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       for (const tempo of measure.tempos) {
         tempoChanges.push({beat:playbackBeat + tempo.beat,bpm:tempo.bpm});
       }
+      for (const fermata of measure.fermatas || []) {
+        fermataPauses.push({
+          startBeat:playbackBeat + fermata.startBeat,
+          endBeat:playbackBeat + fermata.endBeat,
+          stretch:fermata.stretch
+        });
+      }
       playbackBeat += measure.length;
     }
 
@@ -1622,6 +1637,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       bpm:normalizedTempos[0].bpm,
       meter:{numerator:meterNumerator,denominator:meterDenominator},
       tempoChanges:normalizedTempos,
+      fermataPauses:normalizeFermataPauses(fermataPauses),
       events:events.sort((a,b) => a.beat-b.beat),
       importInfo:{
         source:fileName,
