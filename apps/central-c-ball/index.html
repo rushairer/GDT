@@ -137,7 +137,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   <section class="live-panel" id="livePanel">
     <h2 class="panel-title">实时音高识别</h2>
-    <p class="panel-description">优化弱音响应与和弦识别。通过麦克风分析声音频谱，识别单音或和弦，并点亮对应琴键。</p>
+    <p class="panel-description">采用连续两帧确认、基频强度与泛音校验，减少环境噪声误触发，同时识别单音和和弦。</p>
     <div class="state"><span class="dot" id="dot"></span><span id="status">尚未启动麦克风监听</span></div>
     <div class="result" id="result">等待音高<small>目标范围：钢琴 A0 – C8</small></div>
     <div class="metrics">
