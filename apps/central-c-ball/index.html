@@ -1244,16 +1244,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
             }
 
             if (item.localName === 'Fermata') {
-              const stretch = parseMuseScoreFermataStretch(item);
-              if (previousTimedItem) {
-                localFermatas.push({
-                  startBeat:previousTimedItem.startBeat,
-                  endBeat:previousTimedItem.startBeat + previousTimedItem.duration,
-                  stretch
-                });
-              } else {
-                pendingFermataStretch = Math.max(pendingFermataStretch,stretch);
-              }
+              pendingFermataStretch = Math.max(pendingFermataStretch,parseMuseScoreFermataStretch(item));
               continue;
             }
 
@@ -1306,6 +1297,17 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
               previousTimedItem = {startBeat,duration};
               cursor += duration;
             }
+          }
+
+          // MuseScore may serialize a final fermata after the last chord/rest.
+          // Prefer the next chord/rest when one follows; only fall back to the
+          // preceding item when the fermata is the last timed item in the voice.
+          if (pendingFermataStretch > 1 && previousTimedItem) {
+            localFermatas.push({
+              startBeat:previousTimedItem.startBeat,
+              endBeat:previousTimedItem.startBeat + previousTimedItem.duration,
+              stretch:pendingFermataStretch
+            });
           }
 
           if (cursor > longestVoice) longestVoice = cursor;
