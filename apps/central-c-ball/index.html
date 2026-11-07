@@ -278,10 +278,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   const MAX_MIDI = 108;
   const FFT_SIZE = 32768;
   const HIT_TOLERANCE_CENTS = 55;
-  const CORE_HARMONIC_THRESHOLD = 0.30;
-  const ACTIVATE_HITS = 1;
+  const CORE_HARMONIC_THRESHOLD = 0.38;
+  const ACTIVATE_HITS = 2;
   const RELEASE_MISSES = 5;
   const ANALYSIS_INTERVAL_MS = 30;
+  const MIN_INPUT_RMS = 0.00024;
   const MAX_POLYPHONY = 12;
   const FALL_SECONDS = 2.2;
   const HIT_EARLY_WINDOW = 0.32;
@@ -556,7 +557,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       if (centsError > HIT_TOLERANCE_CENTS) return {value:0,peak};
 
       const relativeLevel = peak / maxMagnitude;
-      if (relativeLevel < 0.00020) return {value:0,peak};
+      if (relativeLevel < 0.00035) return {value:0,peak};
 
       let floorSum = 0;
       let floorCount = 0;
@@ -571,8 +572,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const localFloor = floorCount ? floorSum / floorCount : 0;
       const ratio = peak / (localFloor + 1e-8);
       const contrastDb = 20 * Math.log10(ratio);
-      const contrast = Math.max(0,Math.min(1,(contrastDb - 1.8) / 10));
-      const amplitudeGate = Math.max(0,Math.min(1,relativeLevel / 0.00075));
+      const contrast = Math.max(0,Math.min(1,(contrastDb - 3.5) / 12));
+      const amplitudeGate = Math.max(0,Math.min(1,relativeLevel / 0.0012));
       return {value:contrast * amplitudeGate,peak};
     }
 
@@ -601,13 +602,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const fundamentalEvidence = harmonicEvidence[0] || 0;
       const coreStrongCount = harmonicEvidence.slice(1,4)
         .filter(value => value > CORE_HARMONIC_THRESHOLD).length;
-      const supportCount = harmonicEvidence.filter(value => value > 0.10).length;
+      const supportCount = harmonicEvidence.filter(value => value > 0.15).length;
       const score = weightedScore / (totalWeight || 1);
       const enoughHarmonics = harmonicEvidence.length >= 4
         ? coreStrongCount >= 1 && supportCount >= 2
         : supportCount >= Math.min(2,harmonicEvidence.length);
 
-      if (fundamentalEvidence > 0.085 && enoughHarmonics && score > 0.075) {
+      if (fundamentalEvidence > 0.12 && fundamentalAmplitude / maxMagnitude > 0.015 && enoughHarmonics && score > 0.10) {
         candidates.push({
           midi,
           frequency:fundamentalHz,
@@ -622,12 +623,14 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     const strongestScore = Math.max(...candidates.map(candidate => candidate.score));
     const viable = candidates
-      .filter(candidate => candidate.score >= Math.max(0.065,strongestScore * 0.12))
+      .filter(candidate => candidate.score >= Math.max(0.09,strongestScore * 0.15))
       .sort((a,b) => a.midi-b.midi);
 
     const selected = [];
     for (const candidate of viable) {
-      let explainedByLowerNote = false;
+      let expectedHarmonicAmplitude = 0;
+      let strongestLowerScore = 0;
+      let hasHarmonicParent = false;
 
       for (const lower of selected) {
         const ratio = candidate.frequency / lower.frequency;
@@ -635,20 +638,21 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         if (harmonic < 2 || harmonic > 16) continue;
 
         const harmonicErrorCents = Math.abs(1200 * Math.log2(ratio / harmonic));
-        // Preserve real chord tones at common octave/fifth intervals.
-        // A true octave usually has a stronger independent fundamental than
-        // the lower note's 2nd partial; higher partials use stricter masking.
-        const harmonicAmplitudeLimit = harmonic === 2 ? 0.55
-          : harmonic === 3 ? 0.40
-          : 0.30;
-        const likelyOvertone = candidate.amplitude < lower.amplitude * harmonicAmplitudeLimit;
-        if (harmonicErrorCents < 24 &&
-            lower.score >= candidate.score * 0.55 &&
-            likelyOvertone) {
-          explainedByLowerNote = true;
-          break;
-        }
+        if (harmonicErrorCents >= 24) continue;
+
+        hasHarmonicParent = true;
+        strongestLowerScore = Math.max(strongestLowerScore,lower.score);
+
+        // Sum the expected partial energy from every lower note that can
+        // explain this peak. This prevents a bass note's 6th partial plus a
+        // chord tone's 2nd partial from creating a phantom extra key, while
+        // retaining a real upper note when it adds independent energy.
+        expectedHarmonicAmplitude += lower.amplitude / Math.pow(harmonic,1.25);
       }
+
+      const explainedByLowerNote = hasHarmonicParent &&
+        strongestLowerScore >= candidate.score * 0.55 &&
+        candidate.amplitude <= expectedHarmonicAmplitude * 1.25;
 
       if (!explainedByLowerNote) selected.push(candidate);
       if (selected.length >= MAX_POLYPHONY) break;
@@ -671,8 +675,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
         if (
           activeMidis.has(midi) &&
           previousAmplitude > 1e-7 &&
-          candidate.amplitude > previousAmplitude * 1.30 &&
-          now - lastAttackAt[midi] > 0.09
+          candidate.amplitude > previousAmplitude * 1.45 &&
+          now - lastAttackAt[midi] > 0.12
         ) {
           lastAttackAt[midi] = now;
         }
@@ -730,7 +734,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     analyser.getFloatFrequencyData(spectrumData);
     const maxMagnitude = fillMagnitudes();
 
-    const detectedNotes = inputLevel.rms < 0.00012
+    const detectedNotes = inputLevel.rms < MIN_INPUT_RMS
       ? []
       : detectPolyphonicNotes(context.sampleRate, maxMagnitude);
 
