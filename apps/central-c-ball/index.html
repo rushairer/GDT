@@ -343,6 +343,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
   let challengeRunning = false;
   let challengeFrameId = 0;
   let challengeStartAt = 0;
+  let challengeFallSeconds = FALL_SECONDS;
   let challengeNotes = [];
   let challengeHits = 0;
   let challengeMisses = 0;
@@ -2012,7 +2013,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     // The falling bar's length is the note's actual sounding duration.
     // Its bottom edge reaches the strike line at the scheduled note onset.
-    const pixelsPerSecond = challengeStage.clientHeight / FALL_SECONDS;
+    const pixelsPerSecond = challengeStage.clientHeight / challengeFallSeconds;
     note.barHeight = Math.max(4,note.durationSeconds * pixelsPerSecond);
     bar.style.height = note.barHeight + 'px';
 
@@ -2038,7 +2039,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       pending++;
 
       const remaining = note.hitAt - now;
-      if (!note.bar && remaining <= FALL_SECONDS && remaining >= -HIT_LATE_WINDOW) {
+      if (!note.bar && remaining <= challengeFallSeconds && remaining >= -HIT_LATE_WINDOW) {
         note.bar = createFallingBar(note);
       }
 
@@ -2080,7 +2081,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       }
 
       if (note.bar) {
-        const progress = Math.max(0,Math.min(1,1 - remaining / FALL_SECONDS));
+        const progress = Math.max(0,Math.min(1,1 - remaining / challengeFallSeconds));
         const bottom = progress * stageHeight;
         note.bar.style.top = (bottom - note.barHeight) + 'px';
       }
@@ -2120,6 +2121,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     challengeStartAt = performance.now() / 1000 + 3;
     challengeNotes = createChallengeNotes();
+    challengeFallSeconds = Math.max(FALL_SECONDS,...challengeNotes.map(note => note.durationSeconds));
     challengeRunning = true;
     challengeStage.classList.remove('waiting');
     challengeStage.classList.add('running');
@@ -2137,6 +2139,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       if (note.bar) note.bar.remove();
     });
     challengeNotes = [];
+    challengeFallSeconds = FALL_SECONDS;
     fallingNotesLayer.textContent = '';
     challengeStage.classList.remove('running');
     challengeStage.classList.add('waiting');
