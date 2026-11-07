@@ -228,7 +228,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
   <section class="challenge-panel" id="challengePanel" hidden>
     <h2 class="panel-title">演奏挑战</h2>
-    <p class="panel-description">乐曲中的每个音符会变成下落条形。条形到达琴键时，请通过麦克风演奏对应音高；匹配成功，条形就会消失。和弦会同时出现多个条形。</p>
+    <p class="panel-description">乐曲中的每个音符会变成下落条形，条形长度按实际音符时值显示。速度变化和反复顺序会计入时间轴。条形到达琴键时，请通过麦克风演奏对应音高；匹配成功，条形就会消失。和弦会同时出现多个条形。</p>
     <div class="metrics">
       <div class="metric"><span>当前乐曲</span><strong id="challengeTitle">我的新乐曲</strong></div>
       <div class="metric"><span>命中</span><strong id="challengeHits">0</strong></div>
@@ -261,7 +261,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     </div>
   </section>
 
-  <p class="hint">音频只在本机浏览器处理。MuseScore 导入主要读取音符、和弦、休止符、基础时值、拍号和速度；复杂装饰记号、连音线、歌词、反复跳转等排版信息不会完整还原。创作内容可保存为本程序乐曲文件，或导出 MusicXML 后在 MuseScore 4 中继续编辑。</p>
+  <p class="hint">音频只在本机浏览器处理。MuseScore 导入读取音符、和弦、休止符、基础时值、常见连音、拍号、速度变化、开始/结束反复、反复次数、常见第一/第二结尾，以及 D.C./D.S. 跳转。复杂装饰记号、歌词和部分高级谱面排版仍不会完整还原。创作内容可保存为本程序乐曲文件，或导出 MusicXML 后在 MuseScore 4 中继续编辑。</p>
 </main>
 
 <script>
@@ -1215,7 +1215,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           const nextNode = directChild(spanner,'next');
           const nextLocation = nextNode ? firstDescendant(nextNode,'location') : null;
           const spanMeasures = nextLocation ? Number(childText(nextLocation,'measures','0')) : 0;
-          const endIndex = Math.min(measureCount - 1,measureIndex + Math.max(0,spanMeasures));
+          const endIndex = Math.min(measureCount - 1,measureIndex + Math.max(0,spanMeasures - 1));
 
           for (let target = measureIndex; target <= endIndex; target++) {
             const targetSet = new Set(measureInfos[target].endingNumbers);
@@ -1816,7 +1816,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const divisions = 960;
     const meterBeats = score.meter.numerator * 4 / score.meter.denominator;
     const events = score.events.slice().sort((a,b) => a.beat-b.beat);
-    const totalBeats = events.reduce((max,event) => Math.max(max,eventEnd(event)),0);
+    const tempos = normalizeTempoChanges(score.tempoChanges,score.bpm);
+    const totalBeats = Math.max(
+      events.reduce((max,event) => Math.max(max,eventEnd(event)),0),
+      tempos.reduce((max,tempo) => Math.max(max,tempo.beat),0)
+    );
     const measureCount = Math.max(1,Math.ceil(totalBeats / meterBeats));
     let xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
     xml += '<score-partwise version="4.0"><work><work-title>' + xmlEscape(score.title) + '</work-title></work>';
@@ -1827,13 +1831,20 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const measureStart = measureIndex * meterBeats;
       const measureEnd = measureStart + meterBeats;
       const measureEvents = events.filter(event => event.beat >= measureStart - 0.00001 && event.beat < measureEnd - 0.00001);
+      const measureTempos = tempos.filter(tempo => tempo.beat >= measureStart - 0.00001 && tempo.beat < measureEnd - 0.00001);
       xml += '<measure number="' + (measureIndex + 1) + '">';
 
       if (measureIndex === 0) {
         xml += '<attributes><divisions>' + divisions + '</divisions><key><fifths>0</fifths></key>';
         xml += '<time><beats>' + score.meter.numerator + '</beats><beat-type>' + score.meter.denominator + '</beat-type></time>';
         xml += '<clef><sign>G</sign><line>2</line></clef></attributes>';
-        xml += '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>' + score.bpm + '</per-minute></metronome></direction-type><sound tempo="' + score.bpm + '"/></direction>';
+      }
+
+      // Tempo directions are anchored to their exact beat offsets.
+      for (const tempo of measureTempos) {
+        const offset = Math.round((tempo.beat - measureStart) * divisions);
+        xml += '<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>' + tempo.bpm + '</per-minute></metronome></direction-type>';
+        xml += '<offset>' + offset + '</offset><sound tempo="' + tempo.bpm + '"/></direction>';
       }
 
       let cursor = 0;
@@ -1868,9 +1879,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
     xml += '</part></score-partwise>';
     downloadBlob(safeFilename(score.title) + '.musicxml',xml,'application/vnd.recordare.musicxml+xml;charset=utf-8');
-    editorMessage.textContent = 'MusicXML 已导出，可使用 MuseScore 4 打开。';
+    editorMessage.textContent = 'MusicXML 已导出，并保留速度变化标记；反复已按实际播放顺序展开。';
   }
-
   async function stopPreview() {
     if (playbackTimer) clearTimeout(playbackTimer);
     playbackTimer = 0;
