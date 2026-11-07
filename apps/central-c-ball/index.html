@@ -1197,6 +1197,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       const nominalMeasureBeats = meterNumerator * 4 / meterDenominator;
       const localEvents = new Map();
       const localTempos = new Map();
+      const localFermatas = [];
       let longestVoice = 0;
 
       for (const measure of measureNodes) {
@@ -1205,6 +1206,8 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
         for (const voice of voices) {
           let cursor = 0;
+          let previousTimedItem = null;
+          let pendingFermataStretch = 1;
           const tupletStack = [];
 
           for (const item of Array.from(voice.children || [])) {
@@ -1220,6 +1223,20 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
               continue;
             }
 
+            if (item.localName === 'Fermata') {
+              const stretch = parseMuseScoreFermataStretch(item);
+              if (previousTimedItem) {
+                localFermatas.push({
+                  startBeat:previousTimedItem.startBeat,
+                  endBeat:previousTimedItem.startBeat + previousTimedItem.duration,
+                  stretch
+                });
+              } else {
+                pendingFermataStretch = Math.max(pendingFermataStretch,stretch);
+              }
+              continue;
+            }
+
             if (item.localName === 'Tempo') {
               const bpm = parseMuseScoreTempoMark(item);
               if (bpm) {
@@ -1232,7 +1249,15 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
             const tupletRatio = tupletStack.reduce((product,value) => product * value,1);
 
             if (item.localName === 'Chord') {
+              const startBeat = cursor;
               const duration = parseDuration(item,nominalMeasureBeats,division,tupletRatio);
+              const embeddedFermataStretch = collectMuseScoreFermataStretch(item);
+              const chordFermataStretch = Math.max(pendingFermataStretch,embeddedFermataStretch);
+              if (chordFermataStretch > 1) {
+                localFermatas.push({startBeat,endBeat:startBeat + duration,stretch:chordFermataStretch});
+              }
+              pendingFermataStretch = 1;
+              previousTimedItem = {startBeat,duration};
               const notes = directChildren(item,'Note');
 
               for (const note of notes) {
@@ -1251,7 +1276,15 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
               }
               cursor += duration;
             } else if (item.localName === 'Rest') {
-              cursor += parseDuration(item,nominalMeasureBeats,division,tupletRatio);
+              const startBeat = cursor;
+              const duration = parseDuration(item,nominalMeasureBeats,division,tupletRatio);
+              const restFermataStretch = Math.max(pendingFermataStretch,collectMuseScoreFermataStretch(item));
+              if (restFermataStretch > 1) {
+                localFermatas.push({startBeat,endBeat:startBeat + duration,stretch:restFermataStretch});
+              }
+              pendingFermataStretch = 1;
+              previousTimedItem = {startBeat,duration};
+              cursor += duration;
             }
           }
 
@@ -1308,6 +1341,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
           ...event,pitches:event.pitches.sort((a,b) => a-b),tiePitches:event.tiePitches.sort((a,b) => a-b)
         })),
         tempos:Array.from(localTempos.values()),
+        fermatas:normalizeFermataPauses(localFermatas),
         repeatStart,
         repeatCount,
         endingNumbers:Array.from(endingNumbers),
@@ -1343,6 +1377,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     const playbackOrder = buildPlaybackMeasureOrder(measureInfos);
     const events = [];
     const tempoChanges = [];
+    const fermataPauses = [];
     let playbackBeat = 0;
     let playbackEventIndex = 0;
 
@@ -1361,6 +1396,13 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
 
       for (const tempo of measure.tempos) {
         tempoChanges.push({beat:playbackBeat + tempo.beat,bpm:tempo.bpm});
+      }
+      for (const fermata of measure.fermatas || []) {
+        fermataPauses.push({
+          startBeat:playbackBeat + fermata.startBeat,
+          endBeat:playbackBeat + fermata.endBeat,
+          stretch:fermata.stretch
+        });
       }
 
       playbackBeat += measure.length;
@@ -1385,6 +1427,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       bpm:normalizedTempos[0].bpm,
       meter:{numerator:meterNumerator,denominator:meterDenominator},
       tempoChanges:normalizedTempos,
+      fermataPauses:normalizeFermataPauses(fermataPauses),
       events:events.sort((a,b) => a.beat-b.beat || a.duration-b.duration),
       importInfo:{
         source:fileName,
