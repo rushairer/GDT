@@ -1858,6 +1858,10 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       throw new Error('不支持此文件格式。请选择 .mscz、.mscx、.musicxml、.xml 或本程序乐曲 JSON。');
     }
 
+    const embeddedTitle = String(imported.title || '').trim();
+    const filenameTitle = name.replace(/\.[^.]+$/,'').trim() || '未命名乐曲';
+    if (!embeddedTitle || embeddedTitle === '我的新乐曲' || embeddedTitle === '未命名乐曲') imported.title = filenameTitle;
+    stopPreview(false);
     score = normalizeScore(imported);
     nextEventId = score.events.length + 1;
     syncScoreToEditor();
@@ -2251,7 +2255,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     playbackFrame = requestAnimationFrame(updatePlaybackProgress);
   }
 
-  async function stopPreview(completed = false) {
+  function stopPreview(completed = false) {
     if (playbackTimer) clearTimeout(playbackTimer);
     playbackTimer = 0;
     if (playbackFrame) cancelAnimationFrame(playbackFrame);
@@ -2263,10 +2267,11 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
     playbackActiveMidis.clear();
 
-    if (playbackContext && playbackContext.state !== 'closed') {
-      await playbackContext.close();
-    }
+    const previousContext = playbackContext;
     playbackContext = null;
+    if (previousContext && previousContext.state !== 'closed') {
+      try { previousContext.close().catch(() => {}); } catch (error) { /* Already closed. */ }
+    }
     playbackNotes = [];
     playbackStartAt = 0;
 
@@ -2285,7 +2290,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
       return;
     }
 
-    await stopPreview(false);
+    stopPreview(false);
 
     const timeline = buildPitchTimeline();
     if (!timeline.length) {
@@ -2294,8 +2299,23 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     }
 
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    playbackContext = new AudioContextClass();
-    await playbackContext.resume();
+    if (!AudioContextClass) {
+      editorMessage.textContent = '当前浏览器不支持音频播放。';
+      return;
+    }
+    try {
+      playbackContext = new AudioContextClass();
+      // Start/resume synchronously inside the click event to satisfy browser autoplay policy.
+      const resumePromise = playbackContext.resume();
+      resumePromise.catch(error => {
+        stopPreview(false);
+        editorMessage.textContent = '播放失败：' + (error.message || '请检查浏览器音频权限');
+      });
+    } catch (error) {
+      stopPreview(false);
+      editorMessage.textContent = '播放初始化失败：' + error.message;
+      return;
+    }
 
     const masterGain = playbackContext.createGain();
     const compressor = playbackContext.createDynamicsCompressor();
@@ -2657,7 +2677,7 @@ button:active{transform:scale(.97)}button:disabled{opacity:.38;cursor:not-allowe
     });
 
     $('previewScore').addEventListener('click',previewScore);
-    $('stopPreview').addEventListener('click',stopPreview);
+    $('stopPreview').addEventListener('click',() => stopPreview(false));
     $('saveScore').addEventListener('click',saveScoreFile);
     $('exportMusicXML').addEventListener('click',exportMusicXML);
 
